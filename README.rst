@@ -1,5 +1,5 @@
-ComPyle: compile subset of Python for high performance
-========================================================
+ComPyle: execute a subset of Python on HPC platforms
+======================================================
 
 ComPyle allows users to execute a restricted subset of Python (almost similar
 to C) on a variety of HPC platforms. Currently we support multi-core execution
