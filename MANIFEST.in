@@ -1,0 +1,3 @@
+include MANIFEST.in Makefile *.py *.rst *.yml *.txt
+recursive-include docs *.*
+recursive-include examples *.*

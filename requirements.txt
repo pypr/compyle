@@ -1,0 +1,5 @@
+mako
+pytools
+cython
+numpy
+pytest
