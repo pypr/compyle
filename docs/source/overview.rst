@@ -14,11 +14,11 @@ ComPyle is not a magic bullet,
 
 - Do not expect that you may get a tremendous speedup.
 - Performance optimization can be hard and is platform specific. What works on
-  the CPU may not work on the GPU and vice-versa. ComPyle does not do anything to
-  make this aspect easier. All the issues with memory bandwidth, cache, false
+  the CPU may not work on the GPU and vice-versa. ComPyle does not do anything
+  to make this aspect easier. All the issues with memory bandwidth, cache, false
   sharing etc. still remain. Differences between memory architectures of CPUs
-  and GPUs are not avoided at all -- you still have to deal with it. But you
-  can do so from the comfort of one simple programming language, Python.
+  and GPUs are not avoided at all -- you still have to deal with it. But you can
+  do so from the comfort of one simple programming language, Python.
 - ComPyle makes it easy to write everything in pure Python and generate the
   platform specific code from Python. It provides a low-level tool to make it
   easy for you to generate whatever appropriate code.
@@ -31,12 +31,12 @@ ComPyle is not a magic bullet,
   some in Python, some in OpenCL/CUDA, some in string fragments that you put
   together. Then you'd have to manage each of the runtimes yourself, worry about
   compilation etc. ComPyle minimizes that pain.
-- By being written in Python, we make it easy to assemble these building
-  blocks together to do fairly sophisticated things relatively easily from the
-  same language.
+- By being written in Python, we make it easy to assemble these building blocks
+  together to do fairly sophisticated things relatively easily from the same
+  language.
 - ComPyle is fairly simple and does source translation making it generally
-  easier to understand and debug. The code-base is less than 5k lines of code
-  (including the tests).
+  easier to understand and debug. The core code-base is less than 7k lines of
+  code.
 - ComPyle has relatively simple dependencies, for CPU support it requires
   Cython_ and a C-compiler which supports OpenMP_. On the GPU you need either
   PyOpenCL_ or PyCUDA_. In addition it depends on NumPy_ and Mako_.

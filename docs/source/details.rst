@@ -260,6 +260,10 @@ We have a simple approach for this which we discuss later. We call this an
 ``Extern`` and discuss it later.
 
 
+.. _PyOpenCL: https://documen.tician.de/pyopencl/
+.. _Cython: http://www.cython.org
+.. _PySPH: http://pysph.readthedocs.io
+
 Common parallel algorithms
 ---------------------------
 
