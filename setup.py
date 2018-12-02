@@ -13,7 +13,7 @@ install_requires = ['mako', 'pytools', 'cython', 'numpy', 'pytest']
 tests_require = ['pytest']
 
 classes = '''
-Development Status :: 4 - Production/Stable
+Development Status :: 4 - Beta
 Intended Audience :: Developers
 Intended Audience :: Science/Research
 License :: OSI Approved :: BSD License
