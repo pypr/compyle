@@ -1,7 +1,7 @@
 import numpy as np
 import time
 
-from pysph.cpy.config import get_config
+from compyle.config import get_config
 import vm_numba as VN
 import vm_elementwise as VE
 import vm_kernel as VK

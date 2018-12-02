@@ -17,7 +17,7 @@ from .cython_generator import get_parallel_range, CythonGenerator
 from .transpiler import Transpiler, convert_to_float_if_needed
 from .types import dtype_to_ctype
 
-import pysph.cpy.array as array
+from . import array
 
 
 elementwise_cy_template = '''
@@ -510,7 +510,7 @@ class Elementwise(object):
         if getattr(func, '__annotations__', None):
             self.elementwise = ElementwiseBase(func, backend=backend)
         else:
-            from pysph.cpy.jit import ElementwiseJIT
+            from .jit import ElementwiseJIT
             self.elementwise = ElementwiseJIT(func, backend=backend)
 
     def __getattr__(self, name):
@@ -735,7 +735,7 @@ class Reduction(object):
                                            neutral=neutral,
                                            backend=backend)
         else:
-            from pysph.cpy.jit import ReductionJIT
+            from .jit import ReductionJIT
             self.reduction = ReductionJIT(reduce_expr, map_func=map_func,
                                           dtype_out=dtype_out,
                                           neutral=neutral,
@@ -1094,7 +1094,7 @@ class Scan(object):
                                  complex_map=complex_map,
                                  backend=backend)
         else:
-            from pysph.cpy.jit import ScanJIT
+            from .jit import ScanJIT
             self.scan = ScanJIT(input=input, output=output,
                                 scan_expr=scan_expr,
                                 is_segment=is_segment,

@@ -1,29 +1,20 @@
-from functools import wraps
-from textwrap import dedent, wrap
+from textwrap import dedent
 
-from mako.template import Template
 import numpy as np
 import inspect
 import ast
 import importlib
 import warnings
-import sys
 from pytools import memoize
 from .config import get_config
-from .cython_generator import get_parallel_range, CythonGenerator
-from .transpiler import (
-    Transpiler,
-    convert_to_float_if_needed,
-    filter_calls,
-    get_external_symbols_and_calls,
-    BUILTINS)
+from .cython_generator import CythonGenerator
+from .transpiler import Transpiler, BUILTINS
 from .types import (dtype_to_ctype, get_declare_info,
                     dtype_to_knowntype, annotate)
 from .extern import Extern
-from .ast_utils import get_unknown_names_and_calls
 
-import pysph.cpy.array as array
-import pysph.cpy.parallel as parallel
+from . import array
+from . import parallel
 
 
 def kernel_cache_key_args(obj, *args):

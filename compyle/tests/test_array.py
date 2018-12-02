@@ -1,10 +1,8 @@
-from unittest import TestCase
 import pytest
 import numpy as np
 
-from pysph.cpy.config import get_config
-from pysph.cpy.array import Array
-import pysph.cpy.array as array
+from ..array import Array
+import compyle.array as array
 
 
 test_all_backends = pytest.mark.parametrize('backend',

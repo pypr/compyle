@@ -2,10 +2,10 @@ import numpy as np
 from math import pi
 import time
 
-from pysph.cpy.config import get_config
-from pysph.cpy.api import declare, annotate
-from pysph.cpy.parallel import Elementwise
-from pysph.cpy.array import wrap
+from compyle.config import get_config
+from compyle.api import declare, annotate
+from compyle.parallel import Elementwise
+from compyle.array import wrap
 
 
 @annotate(double='xi, yi, xj, yj, gamma', result='doublep')

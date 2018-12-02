@@ -11,11 +11,9 @@ import numpy as np
 from math import pi
 import time
 
-from pysph.cpy.config import get_config
-from pysph.cpy.api import declare, annotate
-from pysph.cpy.low_level import (Kernel, LocalMem, local_barrier,
-                                 LID_0, LDIM_0, GDIM_0)
-from pysph.cpy.array import wrap
+from compyle.api import annotate, declare, get_config, wrap
+from compyle.low_level import (Kernel, LocalMem, local_barrier,
+                               LID_0, LDIM_0, GDIM_0)
 
 
 @annotate(double='xi, yi, xj, yj, gamma', result='doublep')

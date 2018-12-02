@@ -1,10 +1,6 @@
 """Common CUDA related functionality.
 """
 from __future__ import print_function
-from collections import defaultdict
-from operator import itemgetter
-
-from .config import get_config
 
 _cuda_ctx = False
 
@@ -1163,7 +1159,7 @@ class GenericScanKernel(_GenericScanKernelBase):
     Usage example::
 
         import pycuda.gpuarray as gpuarray
-        from pysph.cuda.scan import GenericScanKernel
+        from compyle.cuda import GenericScanKernel
 
         knl = GenericScanKernel(
                 np.int32,

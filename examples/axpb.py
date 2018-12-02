@@ -1,4 +1,4 @@
-from pysph.cpy.api import Elementwise, annotate, wrap, get_config
+from compyle.api import Elementwise, annotate, wrap, get_config
 import numpy as np
 from numpy import sin
 import time
@@ -59,8 +59,8 @@ def compare(m=20):
 def plot_timing(n, timing, backends):
     from matplotlib import pyplot as plt
     backends[1][0] = 'openmp'
-    for time, backend in zip(timing[1:], backends[1:]):
-        plt.semilogx(n, timing[0]/time, label='serial/' + backend[0], marker='+')
+    for t, backend in zip(timing[1:], backends[1:]):
+        plt.semilogx(n, timing[0]/t, label='serial/' + backend[0], marker='+')
     plt.grid()
     plt.xlabel('N')
     plt.ylabel('Speedup')

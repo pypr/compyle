@@ -3,8 +3,9 @@ The type information is extracted from the arguments passed
 and the function is annotated and compiled at runtime.
 """
 
-from pysph.cpy.api import annotate, Elementwise, wrap, get_config
+from compyle.api import annotate, Elementwise, wrap, get_config, declare
 import numpy as np
+from numpy import sin
 
 
 @annotate

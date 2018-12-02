@@ -388,7 +388,7 @@ class Array(object):
 
     @memoize_method
     def _get_remove_kernels(self):
-        import pysph.cpy.parallel as parallel
+        import compyle.parallel as parallel
 
         @annotate(i='int', gintp='indices, if_remove')
         def fill_if_remove(i, indices, if_remove):

@@ -102,7 +102,7 @@ class TestASTUtils(unittest.TestCase):
                      reason='Test requires Python 3.')
     def test_get_unknown_names_and_calls_with_py3_annotation(self):
         code = dedent('''
-        from pysph.cpy import types as T
+        from compyle import types as T
 
         def f(x: T.doublep, n: T.int_)-> T.double:
             s = declare('double')

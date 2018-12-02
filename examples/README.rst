@@ -1,46 +1,45 @@
-CPy
-====
+ComPyle
+=======
 
-CPy (pronounced spy) allows users to execute a restricted subset of Python
-(almost similar to C) on a variety of HPC platforms. Currently we support
-multi-core execution using Cython, and OpenCL for GPU devices. CUDA will be
-supported very soon.
+ComPyle allows users to execute a restricted subset of Python (almost similar
+to C) on a variety of HPC platforms. Currently we support multi-core execution
+using Cython, and OpenCL for GPU devices. CUDA will be supported very soon.
 
 Users start with code implemented in a very restricted Python syntax, this
 code is then automatically transpiled, compiled and executed to run on either
-one CPU core, or multiple CPU cores or on a GPU. CPy offers source-to-source
+one CPU core, or multiple CPU cores or on a GPU. ComPyle offers source-to-source
 transpilation, making it a very convenient tool for writing HPC libraries.
 
-CPy is not a magic bullet,
+ComPyle is not a magic bullet,
 
 - Do not expect that you may get a tremendous speedup.
 - Performance optimization can be hard and is platform specific. What works on
-  the CPU may not work on the GPU and vice-versa. CPy does not do anything to
+  the CPU may not work on the GPU and vice-versa. ComPyle does not do anything to
   make this aspect easier. All the issues with memory bandwidth, cache, false
   sharing etc. still remain. Differences between memory architectures of CPUs
   and GPUs are not avoided at all -- you still have to deal with it. But you
   can do so from the comfort of one simple programming language, Python.
-- CPy makes it easy to write everything in pure Python and generate the
+- ComPyle makes it easy to write everything in pure Python and generate the
   platform specific code from Python. It provides a low-level tool to make it
   easy for you to generate whatever appropriate code.
-- The restrictions CPy imposes make it easy for you to think about your
+- The restrictions ComPyle imposes make it easy for you to think about your
   algorithms in that context and thereby allow you to build functionality that
   exploits the hardware as you see fit.
-- CPy hides the details of the backend to the extent possible. You can write
+- ComPyle hides the details of the backend to the extent possible. You can write
   your code in Python, you can reuse your functions and decompose your problem
-  to maximize reuse. Traditionally you would end up implementing some code in
-  C, some in Python, some in OpenCL/CUDA, some in string fragments that you
-  put together. Then you'd have to manage each of the runtimes yourself, worry
-  about compilation etc. CPy minimizes that pain.
+  to maximize reuse. Traditionally you would end up implementing some code in C,
+  some in Python, some in OpenCL/CUDA, some in string fragments that you put
+  together. Then you'd have to manage each of the runtimes yourself, worry about
+  compilation etc. ComPyle minimizes that pain.
 - By being written in Python, we make it easy to assemble these building
   blocks together to do fairly sophisticated things relatively easily from the
   same language.
-- CPy is fairly simple and does source translation making it generally easier
-  to understand and debug. The code-base is less than 5k lines of code
+- ComPyle is fairly simple and does source translation making it generally
+  easier to understand and debug. The code-base is less than 5k lines of code
   (including the tests).
-- CPy has relatively simple dependencies, for CPU support it requires Cython_
-  and a C-compiler which supports OpenMP_. On the GPU you need either PyOpenCL_
-  or PyCUDA_.  In addition it depends on NumPy_ and Mako_.
+- ComPyle has relatively simple dependencies, for CPU support it requires
+  Cython_ and a C-compiler which supports OpenMP_. On the GPU you need either
+  PyOpenCL_ or PyCUDA_. In addition it depends on NumPy_ and Mako_.
 
 
 .. _Cython: http://www.cython.org
@@ -51,18 +50,18 @@ CPy is not a magic bullet,
 .. _NumPy: http://numpy.scipy.org
 .. _Mako: https://pypi.python.org/pypi/Mako
 
-While CPy is simple and modest, it is quite powerful and convenient. In fact,
-CPy has its origins in PySPH_ which is a powerful Python package supporting
-SPH, molecular dynamics, and other particle-based algorithms. The basic
-elements of CPy are used in PySPH_ to automatically generate HPC code from
-code written in pure Python and execute it on multiple cores, and on GPUs
-without the user having to change any of their code. CPy generalizes this code
-generation to make it available as a general tool.
+While ComPyle is simple and modest, it is quite powerful and convenient. In
+fact, ComPyle has its origins in PySPH_ which is a powerful Python package
+supporting SPH, molecular dynamics, and other particle-based algorithms. The
+basic elements of ComPyle are used in PySPH_ to automatically generate HPC code
+from code written in pure Python and execute it on multiple cores, and on GPUs
+without the user having to change any of their code. ComPyle generalizes this
+code generation to make it available as a general tool.
 
 .. _PySPH: http://pysph.readthedocs.io
 
 
-These are the restrictions on the Python language that CPy poses:
+These are the restrictions on the Python language that ComPyle poses:
 
 - Functions with a C-syntax.
 - Function arguments must be declared using either type annotation or with a
@@ -87,7 +86,7 @@ Simple example
 
 Enough talk, lets look at some code.  Here is a very simple example::
 
-   from pysph.cpy.api import Elementwise, annotate, wrap, get_config
+   from compyle.api import Elementwise, annotate, wrap, get_config
    import numpy as np
 
    @annotate(i='int', x='doublep', y='doublep', double='a,b')
@@ -124,8 +123,8 @@ directory.
   and OpenCL.
 
 - ``vm_numba.py``: shows the same code written in numba for comparison. In our
-  benchmarks, CPy is actually faster even in serial and in parallel it can be
-  much faster when you use all cores.
+  benchmarks, ComPyle is actually faster even in serial and in parallel it can
+  be much faster when you use all cores.
 
 - ``vm_kernel.py``: shows how one can write a low-level OpenCL kernel in pure
   Python and use that. This also shows how you can allocate and use local (or
@@ -160,12 +159,12 @@ developed using a test-driven approach. In fact, a good place to see examples
 are the tests.
 
 We now go into the details of each of these so as to provide a high-level
-overview of what can be done with CPy.
+overview of what can be done with ComPyle.
 
 Annotating functions
 ---------------------
 
-The first step in getting started using CPy is to annotate your functions and
+The first step in getting started using ComPyle is to annotate your functions and
 also declare variables in code.
 
 Annotation is provided by a simple decorator, called ``annotate``. One can
@@ -219,7 +218,7 @@ your convenience. The ``int, float, long`` types are accessible as ``int_,
 float_, long_`` so as not to override the default Python types. For example
 the function ``f`` in the above could also have been declared like so::
 
-  from pysph.cpy.types import floatp, float_, int_
+  from compyle.types import floatp, float_, int_
 
   @annotate(i=int_, x=floatp, return_=float_)
   def f(i, x):
@@ -232,15 +231,15 @@ could potentially pass instances/structs to a function. We will discuss this
 later but all of the basic types discussed above are all instances of
 ``KnownType``.
 
-CPy actually supports Python3 style annotations but only for the function
+ComPyle actually supports Python3 style annotations but only for the function
 arguments and NOT for the local variables. The only caveat is you must use the
-types in ``pysph.cpy.types``, i.e. you must use ``KnownType`` instances as the
+types in ``compyle.types``, i.e. you must use ``KnownType`` instances as the
 types for things to work.
 
 JIT transpilation
 -----------------
 
-CPy also support just-in-time transpilation when annotations of a function
+ComPyle also support just-in-time transpilation when annotations of a function
 are not provided. These functions are annotated at runtime when the
 call arguments are passed. The generated kernel and annotated functions
 are then cached with the types of the call arguments as key. Thus,
@@ -395,7 +394,7 @@ We have a simple approach for this which we discuss later. We call this an
 Common parallel algorithms
 ---------------------------
 
-CPy provides a few very powerful parallel algorithms. These are all directly
+ComPyle provides a few very powerful parallel algorithms. These are all directly
 motivated by Andreas Kloeckner's PyOpenCL_ package. On the GPU they are
 wrappers on top of the functionality provided there. These algorithms make it
 possible to implement scalable algorithms for a variety of common numerical
@@ -407,14 +406,14 @@ and take a keyword argument to specify this backend. If no backend is provided
 a default is chosen from the ``cpy.config`` module. You can get the global
 config using::
 
-  from pysph.cpy.config import get_config
+  from compyle.config import get_config
 
   cfg = get_config()
   cfg.use_openmp = True
   cfg.use_opencl = True
 
 etc. The following are the parallel algorithms available from the
-``pysph.cpy.parallel`` module.
+``compyle.parallel`` module.
 
 ``Elementwise``
 ~~~~~~~~~~~~~~~
@@ -431,7 +430,7 @@ compute ``y = a*sin(x) + b`` where ``y, a, x, b`` are all numpy arrays but let
 us say we want to do this in parallel::
 
   import numpy as np
-  from pysph.cpy.api import annotate, Elementwise, get_config
+  from compyle.api import annotate, Elementwise, get_config
 
   @annotate(i='int', doublep='x, y, a, b')
   def axpb(i, x, y, a, b):
@@ -460,7 +459,7 @@ that the data needs to be sent to the GPU. This is transparently handled by a
 simple ``Array`` wrapper that handles this for us automatically. Here is a
 simple example building on the above::
 
-  from pysph.cpy.api import wrap
+  from compyle.api import wrap
 
   backend = 'opencl'
   x, y, a, b = wrap(x, y, a, b, backend=backend)
@@ -482,7 +481,7 @@ We do not need to change any of our other code.  As you can see this is very con
 Here is all the code put together::
 
   import numpy as np
-  from pysph.cpy.api import annotate, Elementwise, get_config, wrap
+  from compyle.api import annotate, Elementwise, get_config, wrap
 
   @annotate(i='int', doublep='x, y, a, b')
   def axpb(i, x, y, a, b):
@@ -580,7 +579,7 @@ example is to find the cumulative sum of all elements of an array::
 
   ary = np.arange(10000, dtype=np.int32)
   ary = wrap(ary, backend=backend)
-  
+
   @annotate(i='int', ary='intp', return_='int')
   def input_expr(i, ary):
       return ary[i]
@@ -605,7 +604,7 @@ an array::
   unique_count = np.zeros(1, dtype=np.int32)
   unique_count = wrap(unique_count, backend=backend)
   ary = wrap(ary, backend=backend)
-  
+
   @annotate(i='int', ary='intp', return_='int')
   def input_expr(i, ary):
       if i == 0 or ary[i] != ary[i - 1]:
@@ -629,7 +628,7 @@ an array::
   unique_ary = unique_ary.data[:unique_count]
 
   # Result = unique_ary
-  
+
 The following points highlight some important details and quirks about using
 scans in cpy:
 
@@ -653,7 +652,7 @@ Abstracting out arrays
 As discussed in the section on Elementwise operations, different backends need
 to do different things with arrays. With OpenCL/CUDA one needs to send the
 array to the device. This is transparently managed by the
-``pysph.cpy.array.Array`` class. It is easiest to use this transparently with
+``compyle.array.Array`` class. It is easiest to use this transparently with
 the ``wrap`` convenience function as below::
 
   x = np.linspace(0, 1, 1000)/1000
@@ -666,12 +665,12 @@ Thus these, new arrays can be passed to any operation and is handled transparent
 Choice of backend and configuration
 ------------------------------------
 
-The ``pysph.cpy.config`` module provides a simple ``Configuration`` class that
-is used internally in CPy to set things like the backend (Cython,
+The ``compyle.config`` module provides a simple ``Configuration`` class that
+is used internally in ComPyle to set things like the backend (Cython,
 OpenCL/CUDA), and some common options like profiling, turning on OpenMP, using
 double on the GPU etc.  Here is an example of the various options::
 
-  from pysph.cpy.config import get_config
+  from compyle.config import get_config
   cfg = get_config()
   cfg.use_double
   cfg.profile
@@ -680,7 +679,7 @@ double on the GPU etc.  Here is an example of the various options::
 
 If one wants to temporarily set an option and perform an action, one can do::
 
-  from pysph.cpy.config import use_config
+  from compyle.config import use_config
 
   with use_config(use_openmp=False):
      ...
@@ -694,7 +693,7 @@ Low level functionality
 -----------------------
 
 In addition to the above, there are also powerful low-level functionality that
-is provided in ``pysph.cpy.low_level``.
+is provided in ``compyle.low_level``.
 
 
 ``Kernel``
@@ -710,8 +709,8 @@ annotates them and then passes a function to the ``Kernel`` which calls this
 just as we would a normal OpenCL kernel for example. The major advantage is
 that all your code is pure Python. Here is a simple example::
 
-   from pysph.cpy.api import annotate, wrap, get_config
-   from pysph.cpy.low_level import Kernel, LID_0, LDIM_0, GID_0
+   from compyle.api import annotate, wrap, get_config
+   from compyle.low_level import Kernel, LID_0, LDIM_0, GID_0
    import numpy as np
 
    @annotate(x='doublep', y='doublep', double='a,b')
@@ -783,8 +782,8 @@ One may also pass local memory to such a kernel, this trivial example
 demonstrates this::
 
 
-   from pysph.cpy.api import annotate
-   from pysph.cpy.low_level import (
+   from compyle.api import annotate
+   from compyle.low_level import (
        Kernel, LID_0, LDIM_0, GID_0, LocalMem, local_barrier
    )
    import numpy as np
@@ -817,7 +816,7 @@ memory is ``work_group_size * sizeof(double) * 1``. This is convenient as very
 often the exact work group size is not known.
 
 A more complex and meaningful example is the ``vm_kernel.py`` example that is
-included with CPy.
+included with ComPyle.
 
 
 ``Cython``
@@ -826,9 +825,9 @@ included with CPy.
 Just like the ``Kernel`` we also have a ``Cython`` class to run pure Cython
 code. Here is an example of its usage::
 
-  from pysph.cpy.config import use_config
-  from pysph.cpy.types import annotate
-  from pysph.cpy.low_level import Cython, nogil, parallel, prange
+  from compyle.config import use_config
+  from compyle.types import annotate
+  from compyle.low_level import Cython, nogil, parallel, prange
 
   import numpy as np
 
@@ -865,14 +864,14 @@ straight-forward Python analog or implementation. They are implemented as
 Externs. This functionality allows us to link to external code opening up many
 interesting possibilities.
 
-Note that as far as CPy is concerned, we need to know if a function needs to
+Note that as far as ComPyle is concerned, we need to know if a function needs to
 be wrapped or somehow injected. Externs offer us a way to cleanly inject
 external function definitions and use them. This is useful for example when
 you need to include an external CUDA library.
 
 Let us see how the ``prange`` extern is internally defined::
 
-  from pysph.cpy.extern import Extern
+  from compyle.extern import Extern
 
   class _prange(Extern):
       def link(self, backend):
@@ -898,7 +897,7 @@ until we figure out a good test/example for this. The ``code`` method returns
 a suitable line of code inserted into the generated code. Note that in this
 case it just performs a suitable import.
 
-Thus, with this feature we are able to connect CPy with other libraries. This
-functionality will probably evolve a little more as we gain more experience
+Thus, with this feature we are able to connect ComPyle with other libraries.
+This functionality will probably evolve a little more as we gain more experience
 linking with other libraries. However, we have a clean mechanism for doing so
 already in-place.
