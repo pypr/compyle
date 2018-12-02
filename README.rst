@@ -1,6 +1,17 @@
 ComPyle: execute a subset of Python on HPC platforms
 ======================================================
 
+|Travis Status| |Appveyor Status| |Documentation Status|
+
+
+.. |Travis Status| image:: https://travis-ci.org/pypr/compyle.svg?branch=master
+    :target: https://travis-ci.org/pypr/compyle
+.. |Appveyor Status| image:: https://ci.appveyor.com/api/projects/status/isg727d5ofn69rrm?svg=true
+    :target: https://ci.appveyor.com/project/prabhuramachandran/compyle
+.. |Documentation Status| image:: https://readthedocs.org/projects/compyle/badge/?version=latest
+    :target: https://compyle.readthedocs.io/en/latest/?badge=latest
+    :alt: Documentation Status
+
 ComPyle allows users to execute a restricted subset of Python (almost similar
 to C) on a variety of HPC platforms. Currently we support multi-core execution
 using Cython, and OpenCL and CUDA for GPU devices.
