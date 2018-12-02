@@ -1,3 +1,4 @@
+import sys
 from setuptools import setup, find_packages
 
 
@@ -10,6 +11,8 @@ def get_version():
 
 
 install_requires = ['mako', 'pytools', 'cython', 'numpy', 'pytest']
+if sys.version_info[0] < 3:
+    install_requires += ['mock>=1.0']
 tests_require = ['pytest']
 
 classes = '''
