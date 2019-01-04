@@ -387,8 +387,8 @@ class ElementwiseBase(object):
         self.queue = None
         self.c_func = self._generate()
 
-    def _generate(self):
-        self.tp.add(self.func)
+    def _generate(self, declarations=None):
+        self.tp.add(self.func, declarations=declarations)
         if self.backend == 'cython':
             py_data, c_data = self.cython_gen.get_func_signature(self.func)
             py_defn = ['long SIZE'] + py_data[0][1:]
@@ -555,10 +555,10 @@ class ReductionBase(object):
         self.queue = None
         self.c_func = self._generate()
 
-    def _generate(self):
+    def _generate(self, declarations=None):
         if self.backend == 'cython':
             if self.func is not None:
-                self.tp.add(self.func)
+                self.tp.add(self.func, declarations=declarations)
                 py_data, c_data = self.cython_gen.get_func_signature(self.func)
                 self._correct_return_type(c_data)
                 name = self.func.__name__
@@ -591,7 +591,7 @@ class ReductionBase(object):
             return getattr(self.tp.mod, 'py_' + self.name)
         elif self.backend == 'opencl':
             if self.func is not None:
-                self.tp.add(self.func)
+                self.tp.add(self.func, declarations=declarations)
                 py_data, c_data = self.cython_gen.get_func_signature(self.func)
                 self._correct_opencl_address_space(c_data)
                 name = self.func.__name__
@@ -629,7 +629,7 @@ class ReductionBase(object):
             return knl
         elif self.backend == 'cuda':
             if self.func is not None:
-                self.tp.add(self.func)
+                self.tp.add(self.func, declarations=declarations)
                 py_data, c_data = self.cython_gen.get_func_signature(self.func)
                 self._correct_opencl_address_space(c_data)
                 name = self.func.__name__
@@ -816,13 +816,13 @@ class ScanBase(object):
                 break
         return result
 
-    def _generate(self):
+    def _generate(self, declarations=None):
         if self.backend == 'opencl':
-            return self._generate_opencl_kernel()
+            return self._generate_opencl_kernel(declarations=declarations)
         elif self.backend == 'cuda':
-            return self._generate_cuda_kernel()
+            return self._generate_cuda_kernel(declarations=declarations)
         elif self.backend == 'cython':
-            return self._generate_cython_code()
+            return self._generate_cython_code(declarations=declarations)
 
     def _default_cython_input_function(self):
         py_data = (['int i', '{type}[:] input'.format(type=self.type)],
@@ -859,7 +859,7 @@ class ScanBase(object):
             all_c_data[0].extend(c_data[0][n_ignore:])
             all_c_data[1].extend(c_data[1][n_ignore:])
 
-    def _generate_cython_code(self):
+    def _generate_cython_code(self, declarations=None):
         name = self.name
         all_py_data = [[], []]
         all_c_data = [[], []]
@@ -926,9 +926,9 @@ class ScanBase(object):
         self.tp.compile()
         return getattr(self.tp.mod, 'py_' + self.name)
 
-    def _wrap_ocl_function(self, func, func_type=None):
+    def _wrap_ocl_function(self, func, func_type=None, declarations=None):
         if func is not None:
-            self.tp.add(func)
+            self.tp.add(func, declarations=declarations)
             py_data, c_data = self.cython_gen.get_func_signature(func)
             self._correct_opencl_address_space(c_data, func, func_type)
             name = func.__name__
@@ -961,15 +961,18 @@ class ScanBase(object):
         else:
             return self.scan_expr
 
-    def _get_opencl_cuda_code(self):
+    def _get_opencl_cuda_code(self, declarations=None):
         input_expr, input_args, input_c_args = \
-            self._wrap_ocl_function(self.input_func, func_type='input')
+            self._wrap_ocl_function(self.input_func, func_type='input',
+                                    declarations=declarations)
 
         output_expr, output_args, output_c_args = \
-            self._wrap_ocl_function(self.output_func, func_type='output')
+            self._wrap_ocl_function(self.output_func, func_type='output',
+                                    declarations=declarations)
 
         segment_expr, segment_args, segment_c_args = \
-            self._wrap_ocl_function(self.is_segment_func)
+            self._wrap_ocl_function(self.is_segment_func,
+                                    declarations=declarations)
 
         scan_expr = self._get_scan_expr_opencl_cuda()
 
@@ -986,9 +989,11 @@ class ScanBase(object):
         return scan_expr, arg_defn, input_expr, output_expr, \
             segment_expr, preamble
 
-    def _generate_opencl_kernel(self):
+    def _generate_opencl_kernel(self, declarations=None):
         scan_expr, arg_defn, input_expr, output_expr, \
-            segment_expr, preamble = self._get_opencl_cuda_code()
+            segment_expr, preamble = self._get_opencl_cuda_code(
+                declarations=declarations
+            )
 
         from .opencl import get_context, get_queue
         from pyopencl.scan import GenericScanKernel
@@ -1007,9 +1012,11 @@ class ScanBase(object):
         )
         return knl
 
-    def _generate_cuda_kernel(self):
+    def _generate_cuda_kernel(self, declarations=None):
         scan_expr, arg_defn, input_expr, output_expr, \
-            segment_expr, preamble = self._get_opencl_cuda_code()
+            segment_expr, preamble = self._get_opencl_cuda_code(
+                declarations=declarations
+            )
 
         from .cuda import set_context, GenericScanKernel
         set_context()

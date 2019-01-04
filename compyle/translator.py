@@ -138,6 +138,7 @@ class CConverter(ast.NodeVisitor):
         self._for_count = 0
         self._added_loop_vars = set()
         self._annotations = {}
+        self._declarations = None
         self._ignore_methods = []
         self._replacements = {
             'True': '1', 'False': '0', 'None': 'NULL',
@@ -229,6 +230,9 @@ class CConverter(ast.NodeVisitor):
         else:
             return body
 
+    def _get_local_info(self, obj):
+        return None
+
     def _get_local_declarations(self):
         return ''
 
@@ -263,10 +267,10 @@ class CConverter(ast.NodeVisitor):
         helper = CStructHelper(obj)
         return helper.get_code() + '\n'
 
-    def parse(self, obj):
+    def parse(self, obj, declarations=None):
         obj_type = type(obj)
         if isinstance(obj, types.FunctionType):
-            code = self.parse_function(obj)
+            code = self.parse_function(obj, declarations=declarations)
         elif hasattr(obj, '__class__'):
             code = self.parse_instance(obj)
         else:
@@ -286,12 +290,16 @@ class CConverter(ast.NodeVisitor):
         self._annotations = {}
         return code
 
-    def parse_function(self, obj):
+    def parse_function(self, obj, declarations=None):
         src = dedent(inspect.getsource(obj))
         fname = obj.__name__
+        self._declarations = declarations
         self._annotations[fname] = getattr(obj, '__annotations__', None)
+        self._local_decl = self._get_local_info(obj)
         code = self.convert(src)
+        self._local_decl = None
         self._annotations = {}
+        self._declarations = None
         return code
 
     def visit_Add(self, node):
@@ -531,7 +539,7 @@ class CConverter(ast.NodeVisitor):
             return ''
 
         orig_declares = self._declares
-        self._declares = {}
+        self._declares = {} if not self._declarations else self._declarations
         orig_known = set(self._known)
         if PY_VER == 2:
             self._known.update(x.id for x in node.args.args)
@@ -745,16 +753,6 @@ class CUDAConverter(OpenCLConverter):
         if local_info:
             return local_info
         return None
-
-    def parse_function(self, obj):
-        src = dedent(inspect.getsource(obj))
-        fname = obj.__name__
-        self._annotations[fname] = getattr(obj, '__annotations__', None)
-        self._local_decl = self._get_local_info(obj)
-        code = self.convert(src)
-        self._local_decl = None
-        self._annotations = {}
-        return code
 
     def _get_local_declarations(self):
         local_decl = ''

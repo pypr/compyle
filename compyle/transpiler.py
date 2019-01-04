@@ -234,7 +234,7 @@ class Transpiler(object):
             lines = [hline, info, ''] + code + [hline]
             self.header += '\n'.join(lines)
 
-    def _handle_external(self, func):
+    def _handle_external(self, func, declarations=None):
         syms, implicit, calls, externs = get_external_symbols_and_calls(
             func, self.backend
         )
@@ -248,19 +248,21 @@ class Transpiler(object):
         self._handle_symbols(syms)
 
         for f in calls:
-            self.add(f)
+            self.add(f, declarations=declarations)
 
-    def add(self, obj):
+    def add(self, obj, declarations=None):
         if obj in self.blocks:
             return
 
-        self._handle_external(obj)
+        self._handle_external(obj, declarations=declarations)
 
         if self.backend == 'cython':
             self._cgen.parse(obj)
             code = self._cgen.get_code()
         elif self.backend == 'opencl' or self.backend == 'cuda':
-            code = self._cgen.parse(obj)
+            code = self._cgen.parse(
+                obj, declarations=declarations[obj.__name__]
+                if declarations else None)
 
         cb = CodeBlock(obj, code)
         self.blocks.append(cb)

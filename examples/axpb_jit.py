@@ -10,7 +10,6 @@ from numpy import sin
 
 @annotate
 def axpb(i, x, y, a, b):
-    xi = declare('double')
     xi = x[i]
     y[i] = a * sin(xi) + b
 

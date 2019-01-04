@@ -72,7 +72,9 @@ class AnnotationHelper(ast.NodeVisitor):
         self.func = func
         self.arg_types = arg_types
         self.var_types = arg_types.copy()
+        self.undecl_var_types = {}
         self.external_funcs = {}
+        self.external_missing_decl = {}
         self.warning_msg = ('''
             Function called is not marked by the annotate decorator. Argument
             type defaulting to 'double'. If the type is not 'double', store
@@ -88,12 +90,21 @@ class AnnotationHelper(ast.NodeVisitor):
             ctype = '%sp' % ctype
         return ctype
 
+    def get_missing_declarations(self, undecl_var_types):
+        declarations = {}
+        for var_name, dtype in undecl_var_types.items():
+            declarations[var_name] = '%s %s;' % (dtype, var_name)
+        missing_decl = {self.func.__name__: declarations}
+        missing_decl.update(self.external_missing_decl)
+        return missing_decl
+
     def annotate(self):
         src = dedent('\n'.join(inspect.getsourcelines(self.func)[0]))
         self._src = src.splitlines()
         code = ast.parse(src)
         self.visit(code)
         self.func = annotate(self.func, **self.arg_types)
+        return self.get_missing_declarations(self.undecl_var_types)
 
     def error(self, message, node):
         msg = '\nError in code in line %d:\n' % node.lineno
@@ -114,6 +125,13 @@ class AnnotationHelper(ast.NodeVisitor):
             msg += ' ' * node.col_offset + '^' + '\n\n'
         msg += message
         warnings.warn(msg)
+
+    def visit_For(self, node):
+        if node.target.id not in self.var_types and \
+                node.target.id not in self.undecl_var_types:
+            self.undecl_var_types[node.target.id] = 'int'
+        for stmt in node.body:
+            self.visit(stmt)
 
     def visit_Call(self, node):
         # FIXME: External functions have to be at the module level
@@ -142,7 +160,7 @@ class AnnotationHelper(ast.NodeVisitor):
                 f_arg_names = getargspec(f)
                 f_arg_types = dict(zip(f_arg_names, arg_types))
                 f_helper = AnnotationHelper(f, f_arg_types)
-                f_helper.annotate()
+                self.external_missing_decl.update(f_helper.annotate())
                 self.external_funcs[node.func.id] = f_helper
                 return f_helper.arg_types.get('return_', None)
 
@@ -153,7 +171,9 @@ class AnnotationHelper(ast.NodeVisitor):
         return base_type[:-1]
 
     def visit_Name(self, node):
-        node_type = self.var_types.get(node.id, 'double')
+        node_type = self.var_types.get(
+            node.id, self.undecl_var_types.get(node.id, 'double')
+        )
         return node_type
 
     def visit_Assign(self, node):
@@ -172,6 +192,11 @@ class AnnotationHelper(ast.NodeVisitor):
                 names = [x.id for x in left.elts]
                 for name in names:
                     self.var_types[name] = self.get_type(type)
+        else:
+            if isinstance(left, ast.Name) and \
+                    left.id not in self.var_types and \
+                    left.id not in self.undecl_var_types:
+                self.undecl_var_types[left.id] = self.visit(right)
 
     def visit_Compare(self, node):
         return 'int'
@@ -241,9 +266,9 @@ class ElementwiseJIT(parallel.ElementwiseBase):
         if self.func is not None:
             arg_types = self.get_type_info_from_args(*args)
             helper = AnnotationHelper(self.func, arg_types)
-            helper.annotate()
+            declarations = helper.annotate()
             self.func = helper.func
-        return self._generate()
+        return self._generate(declarations=declarations)
 
     def _massage_arg(self, x):
         if isinstance(x, array.Array):
@@ -314,9 +339,9 @@ class ReductionJIT(parallel.ReductionBase):
         if self.func is not None:
             arg_types = self.get_type_info_from_args(*args)
             helper = AnnotationHelper(self.func, arg_types)
-            helper.annotate()
+            declarations = helper.annotate()
             self.func = helper.func
-        return self._generate()
+        return self._generate(declarations=declarations)
 
     def _massage_arg(self, x):
         if isinstance(x, array.Array):
@@ -398,19 +423,20 @@ class ScanJIT(parallel.ScanBase):
 
     @memoize(key=kernel_cache_key_kwargs, use_kwargs=True)
     def _generate_kernel(self, **kwargs):
+        declarations = {}
         if self.input_func is not None:
             arg_types = self.get_type_info_from_kwargs(
                 self.input_func, **kwargs)
             arg_types['return_'] = dtype_to_knowntype(self.dtype)
             helper = AnnotationHelper(self.input_func, arg_types)
-            helper.annotate()
+            declarations.update(helper.annotate())
             self.input_func = helper.func
 
         if self.output_func is not None:
             arg_types = self.get_type_info_from_kwargs(
                 self.output_func, **kwargs)
             helper = AnnotationHelper(self.output_func, arg_types)
-            helper.annotate()
+            declarations.update(helper.annotate())
             self.output_func = helper.func
 
         if self.is_segment_func is not None:
@@ -418,10 +444,10 @@ class ScanJIT(parallel.ScanBase):
                 self.is_segment_func, **kwargs)
             arg_types['return_'] = 'int'
             helper = AnnotationHelper(self.is_segment_func, arg_types)
-            helper.annotate()
+            declarations.update(helper.annotate())
             self.is_segment_func = helper.func
 
-        return self._generate()
+        return self._generate(declarations=declarations)
 
     def _massage_arg(self, x):
         if isinstance(x, array.Array):

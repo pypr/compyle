@@ -21,6 +21,12 @@ def h(a, b):
     return g(a) * g(b)
 
 
+@annotate
+def undeclared_f(a, b):
+    h_ab = h(a, b)
+    return g(h_ab)
+
+
 class TestAnnotationHelper(unittest.TestCase):
     def test_const_as_call_arg(self):
         # Given
@@ -340,3 +346,33 @@ class TestAnnotationHelper(unittest.TestCase):
 
         # Then
         assert helper.arg_types['return_'] == 'ulong'
+
+    def test_undeclared_variable_declaration(self):
+        # Given
+        @annotate
+        def f(a, b):
+            h_ab = h(a, b)
+            return g(h_ab)
+
+        # When
+        types = {'a': 'int', 'b': 'int'}
+        helper = AnnotationHelper(f, types)
+        helper.annotate()
+
+        # Then
+        assert helper.external_funcs['g'].arg_types['x'] == 'int'
+
+    def test_undeclared_variable_declaration_in_external_func(self):
+        # Given
+        @annotate
+        def f(a, b):
+            return undeclared_f(a, b)
+
+        # When
+        types = {'a': 'int', 'b': 'int'}
+        helper = AnnotationHelper(f, types)
+        helper.annotate()
+
+        # Then
+        external_f = helper.external_funcs['undeclared_f']
+        assert external_f.external_funcs['g'].arg_types['x'] == 'int'
