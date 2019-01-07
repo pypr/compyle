@@ -189,19 +189,19 @@ class CythonGenerator(object):
     def get_code(self):
         return self.code
 
-    def parse(self, obj):
+    def parse(self, obj, declarations=None):
         obj_type = type(obj)
         if isinstance(obj, types.FunctionType):
-            self._parse_function(obj)
+            self._parse_function(obj, declarations=declarations)
         elif hasattr(obj, '__class__'):
             self._parse_instance(obj)
         else:
             raise TypeError('Unsupported type to wrap: %s' % obj_type)
 
     def get_func_signature(self, func):
-        """Given a function that is wrapped, return the Python wrapper definition
-        signature and the Python call signature and the C wrapper definition
-        and C call signature.
+        """Given a function that is wrapped, return the Python wrapper
+        definition signature and the Python call signature and the C
+        wrapper definition and C call signature.
 
         For example if we had
 
@@ -278,7 +278,7 @@ class CythonGenerator(object):
 
             # The call_args dict is filled up with the defaults to detect
             # the appropriate type of the arguments.
-            for i in range(1, len(defaults)+1):
+            for i in range(1, len(defaults) + 1):
                 call_args[args[-i]] = defaults[-i]
 
             # Set the rest to Undefined
@@ -333,20 +333,26 @@ class CythonGenerator(object):
                 if name in self.ignore_methods:
                     continue
 
-                c_code, py_code = self._get_method_wrapper(meth, indent=' '*8)
+                c_code, py_code = self._get_method_wrapper(
+                    meth, indent=' ' * 8)
                 methods.append(c_code)
                 if self.python_methods:
                     methods.append(py_code)
 
         return methods
 
-    def _get_method_body(self, meth, lines, indent=' '*8):
+    def _get_method_body(self, meth, lines, indent=' ' * 8, declarations=None):
         getfullargspec = getattr(
             inspect, 'getfullargspec', inspect.getargspec
         )
         args = set(getfullargspec(meth).args)
         src = [self._process_body_line(line) for line in lines]
-        declared = []
+        if declarations:
+            cy_decls = []
+            for var, decl in declarations.items():
+                cy_decls.append((var, indent + 'cdef %s\n' % decl[:-1]))
+            src = cy_decls + src
+        declared = [] if not declarations else declarations.keys()
         for names, defn in src:
             if names:
                 declared.extend(x.strip() for x in names.split(','))
@@ -359,12 +365,13 @@ class CythonGenerator(object):
         code = ''.join(declare) + cython_body
         return code
 
-    def _get_method_wrapper(self, meth, indent=' '*8):
+    def _get_method_wrapper(self, meth, indent=' ' * 8, declarations=None):
         sourcelines = inspect.getsourcelines(meth)[0]
         defn, lines = get_func_definition(sourcelines)
         m_name, returns, args = self._analyze_method(meth, lines)
         c_defn = self._get_c_method_spec(m_name, returns, args)
-        c_body = self._get_method_body(meth, lines, indent=indent)
+        c_body = self._get_method_body(meth, lines, indent=indent,
+                                       declarations=declarations)
         self.code = '{defn}\n{body}'.format(defn=c_defn, body=c_body)
         if self.python_methods:
             defn, body = self._get_py_method_spec(m_name, returns, args,
@@ -380,7 +387,7 @@ class CythonGenerator(object):
                            for name in sorted(data.keys()))
         return vars
 
-    def _get_py_method_spec(self, name, returns, args, indent=' '*8):
+    def _get_py_method_spec(self, name, returns, args, indent=' ' * 8):
         """Returns a Python friendly definition for the method along with the
         wrapper function.
         """
@@ -438,8 +445,9 @@ class CythonGenerator(object):
             defn = 'cdef {type} {name}'.format(type=ctype, name=name)
             return defn
 
-    def _parse_function(self, obj):
-        c_code, py_code = self._get_method_wrapper(obj, indent=' '*4)
+    def _parse_function(self, obj, declarations=None):
+        c_code, py_code = self._get_method_wrapper(obj, indent=' ' * 4,
+                                                   declarations=declarations)
         code = '{defn}\n{body}'.format(defn=c_code[0], body=c_code[1])
         if self.python_methods:
             code += '\n'

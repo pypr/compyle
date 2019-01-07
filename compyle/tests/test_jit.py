@@ -360,6 +360,7 @@ class TestAnnotationHelper(unittest.TestCase):
         helper.annotate()
 
         # Then
+        assert helper.undecl_var_types['h_ab'] == 'int'
         assert helper.external_funcs['g'].arg_types['x'] == 'int'
 
     def test_undeclared_variable_declaration_in_external_func(self):
@@ -375,4 +376,5 @@ class TestAnnotationHelper(unittest.TestCase):
 
         # Then
         external_f = helper.external_funcs['undeclared_f']
+        assert external_f.undecl_var_types['h_ab'] == 'int'
         assert external_f.external_funcs['g'].arg_types['x'] == 'int'

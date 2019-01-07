@@ -257,7 +257,9 @@ class Transpiler(object):
         self._handle_external(obj, declarations=declarations)
 
         if self.backend == 'cython':
-            self._cgen.parse(obj)
+            self._cgen.parse(
+                obj, declarations=declarations[obj.__name__]
+                if declarations else None)
             code = self._cgen.get_code()
         elif self.backend == 'opencl' or self.backend == 'cuda':
             code = self._cgen.parse(
