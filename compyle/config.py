@@ -78,7 +78,7 @@ class Config(object):
             self._use_cuda = self._use_cuda_default()
         return self._use_cuda
 
-    @use_opencl.setter
+    @use_cuda.setter
     def use_cuda(self, value):
         self._use_cuda = value
 
