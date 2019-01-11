@@ -294,6 +294,21 @@ class CConverter(ast.NodeVisitor):
         self._annotations = {}
         return code
 
+    def visit_LShift(self, node):
+        return '<<'
+
+    def visit_RShift(self, node):
+        return '>>'
+
+    def visit_BitOr(self, node):
+        return '|'
+
+    def visit_BitXor(self, node):
+        return '^'
+
+    def visit_BitAnd(self, node):
+        return '&'
+
     def visit_Add(self, node):
         return '+'
 
