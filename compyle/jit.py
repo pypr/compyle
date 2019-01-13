@@ -133,6 +133,9 @@ class AnnotationHelper(ast.NodeVisitor):
         for stmt in node.body:
             self.visit(stmt)
 
+    def visit_IfExp(self, node):
+        return self.visit(node.body)
+
     def visit_Call(self, node):
         # FIXME: External functions have to be at the module level
         # for this to work. Pass list of external functions to
@@ -221,10 +224,10 @@ class AnnotationHelper(ast.NodeVisitor):
     def visit_Return(self, node):
         if isinstance(node.value, ast.Name) or \
                 isinstance(node.value, ast.Subscript) or \
-                isinstance(node.value, ast.Num):
-            self.arg_types['return_'] = self.visit(node.value)
-        elif isinstance(node.value, ast.BinOp) or \
-                isinstance(node.value, ast.Call):
+                isinstance(node.value, ast.Num) or \
+                isinstance(node.value, ast.BinOp) or \
+                isinstance(node.value, ast.Call) or \
+                isinstance(node.value, ast.IfExp):
             result_type = self.visit(node.value)
             if result_type:
                 self.arg_types['return_'] = self.visit(node.value)

@@ -168,6 +168,20 @@ class TestAnnotationHelper(unittest.TestCase):
         # Then
         assert helper.external_funcs['g'].arg_types['x'] == 'double'
 
+    def test_if_exp_as_call_arg(self):
+        # Given
+        @annotate
+        def f(a, b):
+            return g(g(a) if a > b else g(b))
+
+        # When
+        types = {'a': 'int', 'b': 'int'}
+        helper = AnnotationHelper(f, types)
+        helper.annotate()
+
+        # Then
+        assert helper.external_funcs['g'].arg_types['x'] == 'int'
+
     def test_variable_in_return(self):
         # Given
         @annotate
@@ -309,6 +323,20 @@ class TestAnnotationHelper(unittest.TestCase):
         # Then
         assert helper.arg_types['return_'] == 'double'
 
+    def test_if_exp_in_return(self):
+        # Given
+        @annotate
+        def f(a, b):
+            return g(a) if a > b else g(b)
+
+        # When
+        types = {'a': 'int', 'b': 'int'}
+        helper = AnnotationHelper(f, types)
+        helper.annotate()
+
+        # Then
+        assert helper.arg_types['return_'] == 'int'
+
     def test_binop_return_type(self):
         # Given
         @annotate
@@ -378,3 +406,35 @@ class TestAnnotationHelper(unittest.TestCase):
         external_f = helper.external_funcs['undeclared_f']
         assert external_f.undecl_var_types['h_ab'] == 'int'
         assert external_f.external_funcs['g'].arg_types['x'] == 'int'
+
+    def test_undeclared_variable_declaration_in_if_exp(self):
+        # Given
+        @annotate
+        def f(a, b):
+            g_ab = g(a) if a > b else g(b)
+            return g(g_ab)
+
+        # When
+        types = {'a': 'int', 'b': 'int'}
+        helper = AnnotationHelper(f, types)
+        helper.annotate()
+
+        # Then
+        assert helper.undecl_var_types['g_ab'] == 'int'
+        assert helper.external_funcs['g'].arg_types['x'] == 'int'
+
+    def test_undeclared_variable_declaration_in_for(self):
+        # Given
+        @annotate
+        def f(a, b):
+            for i in range(a):
+                b += 1
+            return b
+
+        # When
+        types = {'a': 'int', 'b': 'int'}
+        helper = AnnotationHelper(f, types)
+        helper.annotate()
+
+        # Then
+        assert helper.undecl_var_types['i'] == 'int'
