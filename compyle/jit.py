@@ -44,7 +44,10 @@ def get_ctype_from_arg(arg):
         if isinstance(arg, float):
             return 'double'
         else:
-            return 'long'
+            if arg > 2147483648:
+                return 'long'
+            else:
+                return 'int'
 
 
 def get_binop_return_type(a, b):
