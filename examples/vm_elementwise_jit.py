@@ -24,7 +24,6 @@ def point_vortex(xi, yi, xj, yj, gamma, result):
 
 @annotate
 def velocity(i, x, y, gamma, u, v, nv):
-    j = declare('int')
     tmp = declare('matrix(2)')
     xi = x[i]
     yi = y[i]
