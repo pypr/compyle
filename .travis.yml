@@ -24,7 +24,13 @@ install:
     - conda install -c conda-forge pocl pyopencl cython numpy
     - python -c 'import pyopencl as cl'
     - pip install -r requirements.txt
+    - pip install coverage codecov
     - python setup.py develop
 
 script:
-    - pytest -v
+    - coverage erase
+    - coverage run -m pytest -v
+
+after_success:
+    - coverage report
+    - codecov
