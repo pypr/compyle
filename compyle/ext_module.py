@@ -6,6 +6,7 @@ from distutils.errors import CompileError, LinkError
 import hashlib
 import imp
 import importlib
+import logging
 import numpy
 import os
 from os.path import dirname, exists, expanduser, isdir, join
@@ -28,6 +29,9 @@ except ImportError:
 # Package imports.
 from .config import get_config  # noqa: 402
 from .capture_stream import CaptureMultipleStreams  # noqa: 402
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_platform_dir():
@@ -278,5 +282,6 @@ class ExtModule(object):
             return ec, el
 
     def _message(self, *args):
+        logger.info(args)
         if self.verbose:
             print(' '.join(args))

@@ -280,7 +280,7 @@ class Transpiler(object):
     def compile(self):
         if self.backend == 'cython':
             self.source = self.get_code()
-            mod = ExtModule(self.source, verbose=True)
+            mod = ExtModule(self.source)
             self.mod = mod.load()
         elif self.backend == 'opencl':
             import pyopencl as cl
