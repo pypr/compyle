@@ -187,6 +187,30 @@ def test_multiple_boolops():
     assert code.strip() == expect.strip()
 
 
+def test_multiple_bitwise_ops():
+    # Given
+    src = dedent('''
+    x = 1 << 5
+    y = x >> 2
+    z = (x | y) ^ (x & y)
+    ''')
+
+    # When
+    code = py2c(src)
+
+    # Then
+    expect = dedent('''
+    double x;
+    double y;
+    double z;
+    x = (1 << 5);
+    y = (x >> 2);
+    z = ((x | y) ^ (x & y));
+    ''')
+
+    assert code.strip() == expect.strip()
+
+
 def test_power():
     # Given
     src = dedent('''
@@ -1093,6 +1117,7 @@ def test_wrapping_class():
     # Given
     class Dummy(object):
         '''Class Docstring'''
+
         def __init__(self, x=0, f=0.0, s=''):
             "Constructor docstring"
             self.x = x
@@ -1139,6 +1164,7 @@ def test_wrapping_class_with_ignore_methods():
     # Given
     class Dummy1(object):
         '''Class Docstring'''
+
         def f(self):
             pass
 
