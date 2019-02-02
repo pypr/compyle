@@ -22,6 +22,7 @@ from mako.template import Template
 from .types import KnownType, Undefined, get_declare_info
 from .config import get_config
 from .ast_utils import get_assigned, has_return
+from .utils import getsourcelines
 
 logger = logging.getLogger(__name__)
 
@@ -214,7 +215,7 @@ class CythonGenerator(object):
         (['int x', 'double* y'], ['x', 'y'])
 
         """
-        sourcelines = inspect.getsourcelines(func)[0]
+        sourcelines = getsourcelines(func)[0]
         defn, lines = get_func_definition(sourcelines)
         f_name, returns, args = self._analyze_method(func, lines)
         py_args = []
@@ -366,7 +367,7 @@ class CythonGenerator(object):
         return code
 
     def _get_method_wrapper(self, meth, indent=' ' * 8, declarations=None):
-        sourcelines = inspect.getsourcelines(meth)[0]
+        sourcelines = getsourcelines(meth)[0]
         defn, lines = get_func_definition(sourcelines)
         m_name, returns, args = self._analyze_method(meth, lines)
         c_defn = self._get_c_method_spec(m_name, returns, args)

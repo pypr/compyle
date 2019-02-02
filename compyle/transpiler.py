@@ -1,4 +1,3 @@
-import inspect
 import importlib
 import math
 import re
@@ -12,7 +11,7 @@ from .cython_generator import CythonGenerator, CodeGenerationError
 from .translator import OpenCLConverter, CUDAConverter
 from .ext_module import ExtModule
 from .extern import Extern, get_extern_code
-
+from .utils import getsourcelines
 
 BUILTINS = set(
     [x for x in dir(math) if not x.startswith('_')] +
@@ -66,7 +65,7 @@ def get_external_symbols_and_calls(func, backend):
     else:
         ignore = OCL_BUILTIN_SYMBOLS
 
-    src = dedent('\n'.join(inspect.getsourcelines(func)[0]))
+    src = dedent('\n'.join(getsourcelines(func)[0]))
     names, calls = get_unknown_names_and_calls(src)
     names -= ignore
     calls = filter_calls(calls)

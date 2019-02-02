@@ -12,6 +12,7 @@ from .transpiler import Transpiler, BUILTINS
 from .types import (dtype_to_ctype, get_declare_info,
                     dtype_to_knowntype, annotate)
 from .extern import Extern
+from .utils import getsourcelines
 
 from . import array
 from . import parallel
@@ -102,7 +103,7 @@ class AnnotationHelper(ast.NodeVisitor):
         return missing_decl
 
     def annotate(self):
-        src = dedent('\n'.join(inspect.getsourcelines(self.func)[0]))
+        src = dedent('\n'.join(getsourcelines(self.func)[0]))
         self._src = src.splitlines()
         code = ast.parse(src)
         self.visit(code)
