@@ -41,6 +41,8 @@ class Template(object):
         args = argspec.args
         if args[0] == 'self':
             args = args[1:]
+        extra_args, extra_annotations = self.extra_args()
+        args += extra_args
         arg_string = ', '.join(args)
         body = m.body[0].body
         template = body[-1].value.s
@@ -51,18 +53,47 @@ class Template(object):
         )
         src = sig + self.render(template)
         annotations = self.template.__annotations__ or {}
+        annotations.update(extra_annotations)
         return src, annotations
 
-    def inject(self, s):
-        return s
+    def inject(self, func, indent=1):
+        '''Returns the source code of the body of `func`.
+
+        The optional `indent` parameter is the indentation to be used for the
+        code.  When indent is 1, 4 spaces are added to each line.
+
+        This is meant to be used from the mako template. The idea is that one
+        can define the code to be injected as a method and have the body be
+        directly injected.
+        '''
+        lines = inspect.getsourcelines(func)[0]
+        src = dedent(''.join(lines))
+        m = ast.parse(src)
+        # We do this so as to not inject any docstrings.
+        body_start_index = 1 if isinstance(m.body[0].body[0], ast.Expr) else 0
+        body_start = m.body[0].body[body_start_index].lineno - 1
+        body_lines = lines[body_start:]
+        first = body_lines[0]
+        leading = first.index(first.lstrip())
+        diff = indent*4 - leading
+        if diff < 0:
+            indented_body = [x[-diff:] for x in body_lines]
+        else:
+            indented_body = [' '*diff + x for x in body_lines]
+        return ''.join(indented_body)
 
     def render(self, src):
         t = mako.template.Template(text=src)
         return t.render(obj=self)
 
     def extra_args(self):
-        # XXX
-        return None
+        '''Override this to provide configurable arguments.
+
+        Return a list of strings which are the arguments and a dictionary with
+        the type annotations.
+
+        '''
+        return [], {}
 
     def template(self):
         '''Override this to write your mako template.
