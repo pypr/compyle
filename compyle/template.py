@@ -52,7 +52,7 @@ class Template(object):
             name=name, args=arg_string, docs=docstring
         )
         src = sig + self.render(template)
-        annotations = self.template.__annotations__ or {}
+        annotations = getattr(self.template, '__annotations__', {})
         annotations.update(extra_annotations)
         return src, annotations
 
