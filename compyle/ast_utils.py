@@ -6,6 +6,8 @@ import sys
 
 PY_VER = sys.version_info.major
 
+basestring = str if PY_VER > 2 else basestring
+
 
 class NameLister(ast.NodeVisitor):
     """Utility class to collect the Names in an AST.
@@ -93,7 +95,7 @@ class SymbolParser(ast.NodeVisitor):
 
 
 def _get_tree(code):
-    return ast.parse(code) if isinstance(code, str) else code
+    return ast.parse(code) if isinstance(code, basestring) else code
 
 
 def get_symbols(code, ctx=(ast.Load, ast.Store)):
@@ -138,7 +140,7 @@ def get_unknown_names_and_calls(code):
     code: A code string or the result of an ast.parse.
 
     """
-    tree = ast.parse(code) if isinstance(code, str) else code
+    tree = ast.parse(code) if isinstance(code, basestring) else code
     p = SymbolParser()
     p.visit(tree)
     funcargs = p.funcargs
