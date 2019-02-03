@@ -12,7 +12,6 @@ tested and modified to be suitable for use with PySPH.
 from __future__ import absolute_import
 
 import ast
-import inspect
 import re
 import sys
 from textwrap import dedent, wrap
@@ -26,6 +25,7 @@ from .types import get_declare_info
 from .cython_generator import (
     CodeGenerationError, KnownType, Undefined, all_numeric
 )
+from .utils import getsource
 
 PY_VER = sys.version_info.major
 
@@ -279,7 +279,7 @@ class CConverter(ast.NodeVisitor):
 
     def parse_instance(self, obj, ignore_methods=None):
         code = self.get_struct_from_instance(obj)
-        src = dedent(inspect.getsource(obj.__class__))
+        src = dedent(getsource(obj.__class__))
         ignore_methods = [] if ignore_methods is None else ignore_methods
         for method in dir(obj):
             if not method.startswith(('_', 'py_')) \
@@ -291,7 +291,7 @@ class CConverter(ast.NodeVisitor):
         return code
 
     def parse_function(self, obj, declarations=None):
-        src = dedent(inspect.getsource(obj))
+        src = dedent(getsource(obj))
         fname = obj.__name__
         self._declarations = declarations
         self._annotations[fname] = getattr(obj, '__annotations__', None)
