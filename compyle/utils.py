@@ -2,9 +2,8 @@ import inspect
 
 
 def getsourcelines(obj):
-    '''Given an object return the source code that defines it as a list of lines
-    along with the starting line.
-
+    '''Given an object return the source code that defines it as a list of
+    lines along with the starting line.
     '''
     try:
         return inspect.getsourcelines(obj)
