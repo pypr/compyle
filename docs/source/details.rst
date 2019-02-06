@@ -54,7 +54,7 @@ Note that for convenience ``annotate``, accepts types and variable names in
 two different ways, which you can use interchangeably.
 
 1. You can simply use ``var_name=type_str``, or ``var_name=type`` where the
-   type is from the ``cpy.types`` module.
+   type is from the ``compyle.types`` module.
 
 2. You can instead use ``type_name='x, y, z'``, which is often very
    convenient. The order of the variables is not important and need not match
@@ -65,7 +65,7 @@ standard string representing one of the types. If the return type is not
 specified it assumes a ``void`` return.
 
 
-The definitions of the various standard types is in ``cpy.types.TYPES``. Some
+The definitions of the various standard types is in ``compyle.types.TYPES``. Some
 are listed below:
 
 - ``'float', 'double', 'int', 'long', 'uint', 'ulong'``: etc. are exactly as
@@ -82,7 +82,7 @@ are listed below:
 - ``ldoublep`` would be equivalent to ``__local double*`` in OpenCL, for local
   memory. Again this address space qualifier is ignored in Cython.
 
-All these types are available in the ``cpy.types`` module namespace also for
+All these types are available in the ``compyle.types`` module namespace also for
 your convenience. The ``int, float, long`` types are accessible as ``int_,
 float_, long_`` so as not to override the default Python types. For example
 the function ``f`` in the above could also have been declared like so::
@@ -95,7 +95,7 @@ the function ``f`` in the above could also have been declared like so::
 
 
 One can also use custom types (albeit with care) by using the
-``cpy.typs.KnownType`` class. This is convenient in other scenarios where you
+``compyle.typs.KnownType`` class. This is convenient in other scenarios where you
 could potentially pass instances/structs to a function. We will discuss this
 later but all of the basic types discussed above are all instances of
 ``KnownType``.
@@ -276,7 +276,7 @@ algorithms are written with these fundamental primitives and scale very well.
 
 All of the following parallel algorithms allow choice of a suitable backend
 and take a keyword argument to specify this backend. If no backend is provided
-a default is chosen from the ``cpy.config`` module. You can get the global
+a default is chosen from the ``compyle.config`` module. You can get the global
 config using::
 
   from compyle.config import get_config
@@ -338,7 +338,7 @@ simple example building on the above::
   x, y, a, b = wrap(x, y, a, b, backend=backend)
 
 What this does is to wrap each of the arrays and also sends the data to the
-device. ``x`` is now an instance of ``pypsh.cpy.array.Array``, this simple
+device. ``x`` is now an instance of ``compyle.array.Array``, this simple
 class has two attributes, ``data`` and ``dev``. The first is the original data
 and the second is a suitable device array from PyOpenCL/PyCUDA depending on
 the backend. To get data from the device to the host you can call ``x.pull()``
@@ -383,7 +383,7 @@ variety of array sizes and plots the performance.
 ``Reduction``
 ~~~~~~~~~~~~~~~
 
-The ``cpy.parallel`` module also provides a ``Reduction`` class which can be
+The ``compyle.parallel`` module also provides a ``Reduction`` class which can be
 used fairly easily. Using it is a bit complex, a good starting point for this
 is the documentation of PyOpenCL_, here
 https://documen.tician.de/pyopencl/algorithm.html#module-pyopencl.reduction
@@ -435,19 +435,19 @@ building blocks to construct a number of parallel algorithms. These include but
 not are limited to sorting, polynomial evaluation, and tree
 operations. Blelloch's literature on prefix sums (`Prefix Sums and Their
 Applications <https://www.cs.cmu.edu/~guyb/papers/Ble93.pdf>`_) has many more
-examples and is a recommended read before using scans. The ``cpy.parallel``
+examples and is a recommended read before using scans. The ``compyle.parallel``
 module provides a ``Scan`` class which can be used to develop and execute such
 scans. The scans can be run on GPUs using the OpenCL backend or on CPUs using
 either the OpenCL or Cython backend. A CUDA backend is not yet supported.
 
-The scan semantics in cpy are similar to those of the GenericScanKernel in
+The scan semantics in compyle are similar to those of the GenericScanKernel in
 PyOpenCL
 (https://documen.tician.de/pyopencl/algorithm.html#pyopencl.scan.GenericScanKernel). Similar
 to the case for reduction, the main differences from the PyOpenCL implementation
 are that the expressions (`input_expr`, `segment_expr`, `output_expr`) are all
 functions rather than strings.
 
-The following examples demonstrate how scans can be used in cpy. The first
+The following examples demonstrate how scans can be used in compyle. The first
 example is to find the cumulative sum of all elements of an array::
 
   ary = np.arange(10000, dtype=np.int32)
@@ -503,7 +503,7 @@ an array::
   # Result = unique_ary
 
 The following points highlight some important details and quirks about using
-scans in cpy:
+scans in compyle:
 
 1. The scan call does not return anything. All output must be handled manually.
    Usually this involves writing the results available in ``output_expr``
@@ -515,8 +515,8 @@ scans in cpy:
    array also used for the input like in the first example.
 3. (For PyOpenCL users) If a segmented scan is used, unlike PyOpenCL where the
    ``across_seg_boundary`` is used to handle the segment logic in the scan
-   expression, in cpy the logic is handled automatically. More specifically,
-   using ``a + b`` as the scan expression in cpy is equivalent to using
+   expression, in compyle the logic is handled automatically. More specifically,
+   using ``a + b`` as the scan expression in compyle is equivalent to using
    ``(across_seg_boundary ? b : a + b)`` in PyOpenCL.
 
 Abstracting out arrays
