@@ -561,6 +561,70 @@ Here everything within the ``with`` clause will be executed using the
 specified option and once the clause is exited, the previous settings will be
 restored.  This can be convenient.
 
+Templates
+----------
+
+When creating libraries, it is useful to be able to write a function as a
+"template" where the code can be generated depending on various user options.
+Compyle facilitates this by using Mako_ templates. We provide a convenient
+``compyle.template.Template`` class which can be used for this purpose. A
+trivial and contrived example demonstrates its use below. The example sets any
+number of given arrays to a constant value::
+
+
+    from compyle.types import annotate
+    from compyle.template import Template
+
+    class SetConstant(Template):
+        def __init__(self, name, arrays):
+            super(SetConstant, self).__init__(name=name)
+            self.arrays = arrays
+
+        def my_func(self, value):
+            '''The contents of this function are directly injected.
+            '''
+            tmp = sin(value)
+
+        def extra_args(self):
+            return self.arrays, {'doublep': ','.join(self.arrays)}
+
+        @annotate(i='int', value='double')
+        def template(self, i, value):
+            '''Set the arrays to a constant value.'''
+            '''
+            ${obj.inject(obj.my_func)}
+            % for arr in obj.arrays:
+            ${arr}[i] = tmp
+            % endfor
+            '''
+
+    set_const = SetConstant('set_const', ['x', 'y', 'z']).function
+    print(set_const.source)
+
+This will print out this::
+
+  def set_const(i, value, x, y, z):
+       """Set arrays to constant.
+       """
+       tmp = sin(value)
+
+       x[i] = tmp
+       y[i] = tmp
+       z[i] = tmp
+
+
+This is obviously a trivial example but the idea is that one can create fairly
+complex templated functions that can be then transpiled and used in different
+cases. The key point here is the ``template`` method which should simply
+create a string which is rendered using Mako_ and then put into a function.
+The ``extra_args`` method allows us to configure the arguments used by the
+function. The mako template can use the name ``obj`` which is ``self``. The
+``obj.inject`` method allows one to literally inject any function into the
+body of the code with a suitable level of indentation. Of course normal mako
+functionality is available to do a variety of things.
+
+
+.. _Mako: https://www.makotemplates.org/
 
 Low level functionality
 -----------------------
