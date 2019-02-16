@@ -280,7 +280,7 @@ class ElementwiseJIT(parallel.ElementwiseBase):
     def _massage_arg(self, x):
         if isinstance(x, array.Array):
             return x.dev
-        elif isinstance(x, np.ndarray):
+        elif self.backend != 'cuda' or isinstance(x, np.ndarray):
             return x
         else:
             return np.asarray(x)
@@ -353,7 +353,7 @@ class ReductionJIT(parallel.ReductionBase):
     def _massage_arg(self, x):
         if isinstance(x, array.Array):
             return x.dev
-        elif isinstance(x, np.ndarray):
+        elif self.backend != 'cuda' or isinstance(x, np.ndarray):
             return x
         else:
             return np.asarray(x)
@@ -459,7 +459,7 @@ class ScanJIT(parallel.ScanBase):
     def _massage_arg(self, x):
         if isinstance(x, array.Array):
             return x.dev
-        elif isinstance(x, np.ndarray):
+        elif self.backend != 'cuda' or isinstance(x, np.ndarray):
             return x
         else:
             return np.asarray(x)
