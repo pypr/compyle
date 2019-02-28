@@ -2,7 +2,12 @@ import subprocess
 import sys
 import unittest
 
+import pytest
+
 from ..capture_stream import CaptureMultipleStreams, CaptureStream
+
+if sys.platform.startswith("win32") and sys.version_info[:2] > (3, 5):
+    pytest.skip("skipping capture tests on windows", allow_module_level=True)
 
 
 def write_stderr():
