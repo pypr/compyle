@@ -258,11 +258,15 @@ class Kernel(object):
             self.knl(*c_args)
             self.queue.finish()
         elif self.backend == 'cuda':
+            import pycuda.driver as drv
             shared_mem_size = int(self._get_local_size(args, ls[0]))
             num_blocks = int((n + ls[0] - 1) / ls[0])
             num_tpb = int(ls[0])
+            event = drv.Event()
             self.knl(*c_args, block=(num_tpb, 1, 1), grid=(num_blocks, 1),
                      shared=shared_mem_size)
+            event.record()
+            event.synchronize()
 
 
 class _prange(Extern):
