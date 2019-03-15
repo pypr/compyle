@@ -34,6 +34,8 @@ class CaptureStream(object):
         self._cached_output = None
 
     def __enter__(self):
+        if sys.platform.startswith('win32') and sys.version_info[:2] > (3, 5):
+            return self
         self.orig_stream = os.dup(self.fileno)
         self.tmp_path = mktemp()
         self.tmp_stream = open(self.tmp_path, 'w+')
@@ -41,6 +43,8 @@ class CaptureStream(object):
         return self
 
     def __exit__(self, type, value, tb):
+        if sys.platform.startswith('win32') and sys.version_info[:2] > (3, 5):
+            return
         if self.orig_stream is not None:
             os.dup2(self.orig_stream, self.fileno)
         if self.tmp_stream is not None:
@@ -66,6 +70,7 @@ class CaptureStream(object):
             self._cache_output()
         return self._cached_output
 
+
 class CaptureMultipleStreams(object):
     """This lets one capture multiple streams together.
     """
@@ -73,12 +78,15 @@ class CaptureMultipleStreams(object):
         streams = (sys.stdout, sys.stderr) if streams is None else streams
         self.streams = streams
         self.captures = [CaptureStream(x) for x in streams]
+
     def __enter__(self):
         for capture in self.captures:
             capture.__enter__()
         return self
+
     def __exit__(self, type, value, tb):
         for capture in self.captures:
             capture.__exit__(type, value, tb)
+
     def get_output(self):
         return tuple(x.get_output() for x in self.captures)

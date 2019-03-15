@@ -251,8 +251,6 @@ class Kernel(object):
             gs = (global_size, )
         else:
             gs, ls = self._get_workgroup_size(n)
-        if self.backend == 'cuda':
-            shared_mem_size = self._get_local_size(args, ls[0])
         c_args = self._get_args(args, ls[0])
         if self.backend == 'opencl':
             prepend = [self.queue, gs, ls]
@@ -260,10 +258,15 @@ class Kernel(object):
             self.knl(*c_args)
             self.queue.finish()
         elif self.backend == 'cuda':
+            import pycuda.driver as drv
+            shared_mem_size = int(self._get_local_size(args, ls[0]))
             num_blocks = int((n + ls[0] - 1) / ls[0])
-            num_tpb = ls[0]
+            num_tpb = int(ls[0])
+            event = drv.Event()
             self.knl(*c_args, block=(num_tpb, 1, 1), grid=(num_blocks, 1),
                      shared=shared_mem_size)
+            event.record()
+            event.synchronize()
 
 
 class _prange(Extern):

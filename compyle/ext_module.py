@@ -94,6 +94,7 @@ class ExtModule(object):
         self.verbose = verbose
         self.depends = depends
         self.extra_inc_dirs = extra_inc_dirs if extra_inc_dirs else []
+        self._add_local_include()
         self.extra_compile_args = (
             extra_compile_args if extra_compile_args else []
         )
@@ -109,6 +110,12 @@ class ExtModule(object):
 
         self.shared_filesystem = False
         self._create_source()
+
+    def _add_local_include(self):
+        if sys.platform != 'win32':
+            local = '/usr/local/include'
+            if local not in self.extra_inc_dirs:
+                self.extra_inc_dirs.append(local)
 
     def _setup_filenames(self):
         base = self.name

@@ -485,8 +485,10 @@ class ElementwiseBase(object):
     def _massage_arg(self, x):
         if isinstance(x, array.Array):
             return x.dev
-        else:
+        elif self.backend != 'cuda' or isinstance(x, np.ndarray):
             return x
+        else:
+            return np.asarray(x)
 
     def __call__(self, *args, **kw):
         c_args = [self._massage_arg(x) for x in args]
@@ -704,8 +706,10 @@ class ReductionBase(object):
     def _massage_arg(self, x):
         if isinstance(x, array.Array):
             return x.dev
-        else:
+        elif self.backend != 'cuda' or isinstance(x, np.ndarray):
             return x
+        else:
+            return np.asarray(x)
 
     def __call__(self, *args):
         c_args = [self._massage_arg(x) for x in args]
@@ -1061,8 +1065,10 @@ class ScanBase(object):
     def _massage_arg(self, x):
         if isinstance(x, array.Array):
             return x.dev
-        else:
+        elif self.backend != 'cuda' or isinstance(x, np.ndarray):
             return x
+        else:
+            return np.asarray(x)
 
     def __call__(self, **kwargs):
         c_args_dict = {k: self._massage_arg(x) for k, x in kwargs.items()}
