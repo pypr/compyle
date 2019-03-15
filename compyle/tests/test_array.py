@@ -166,7 +166,7 @@ def test_align(backend):
     indices = array.arange(15, -1, -1, dtype=np.int32, backend=backend)
 
     # When
-    dev_array.align(indices)
+    dev_array = dev_array.align(indices)
 
     # Then
     assert np.all(dev_array.get() == indices.get())
