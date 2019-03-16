@@ -5,16 +5,9 @@ from .config import get_config
 from .types import annotate, dtype_to_knowntype
 
 
-try:
-    import pycuda
-    if pycuda.VERSION >= (2014, 1):
-        cu_bufint = lambda arr: arr.gpudata.as_buffer(arr.nbytes)
-    else:
-        import cffi
-        ffi = cffi.FFI()
-        cu_bufint = lambda arr: ffi.buffer(ffi.cast('void *', arr.ptr), arr.nbytes)
-except ImportError as e:
-    pass
+import cffi
+ffi = cffi.FFI()
+cu_bufint = lambda arr: ffi.buffer(ffi.cast('void *', arr.ptr), arr.nbytes)
 
 
 def get_backend(backend=None):
