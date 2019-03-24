@@ -238,6 +238,31 @@ def take(ary, indices, backend=None, out=None):
         return wrap_array(output, backend)
 
 
+@annotate
+def inp_cumsum(i, ary):
+    return ary[i]
+
+
+@annotate
+def out_cumsum(i, ary, out, item):
+    out[i] = item
+
+
+def cumsum(ary, backend=None, out=None):
+    if backend is None:
+        backend = ary.backend
+    if backend == 'opencl' or backend == 'cuda':
+        if out is None:
+            out = empty(ary.length, ary.dtype, backend=backend)
+        cumsum_scan = Scan(inp_cumsum, out_cumsum, 'a+b',
+                           dtype=ary.dtype, backend=backend)
+        cumsum_scan(ary=ary, out=out)
+        return out
+    elif backend == 'cython':
+        output = np.cumsum(ary, out=out)
+        return wrap_array(output, backend)
+
+
 class Array(object):
     def __init__(self, dtype, n=0, allocate=True, backend=None):
         self.backend = get_backend(backend)
