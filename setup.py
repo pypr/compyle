@@ -10,10 +10,13 @@ def get_version():
     return data.get('__version__')
 
 
-install_requires = ['mako', 'pytools', 'cython', 'numpy', 'pytest']
-if sys.version_info[0] < 3:
-    install_requires += ['mock>=1.0']
+install_requires = ['mako', 'pytools', 'cython', 'numpy']
 tests_require = ['pytest']
+if sys.version_info[0] < 3:
+    tests_require += ['mock>=1.0']
+docs_require = ['sphinx']
+cuda_require = ['pycuda']
+opencl_require = ['pyopencl']
 
 classes = '''
 Development Status :: 4 - Beta
@@ -48,5 +51,11 @@ setup(
     classifiers=classifiers,
     packages=find_packages(),
     install_requires=install_requires,
-    tests_require=tests_require,
+    extras_require={
+        "docs": docs_require,
+        "tests": tests_require,
+        "dev": docs_require + tests_require,
+        "cuda": cuda_require,
+        "opencl": opencl_require,
+    },
 )
