@@ -12,11 +12,6 @@ def set_context():
         _cuda_ctx = True
 
 
-#####################################################################
-# The GenericScanKernel is added here temporarily until the following
-# PR is merged into PyCUDA
-# https://github.com/inducer/pycuda/pull/188
-#####################################################################
 import numpy as np
 
 import pycuda.driver as drv
@@ -34,6 +29,12 @@ from pytools.persistent_dict import KeyBuilder as KeyBuilderBase
 import logging
 logger = logging.getLogger(__name__)
 
+
+#####################################################################
+# The GenericScanKernel is added here temporarily until the following
+# PR is merged into PyCUDA
+# https://github.com/inducer/pycuda/pull/188
+#####################################################################
 
 def parse_arg_list(arguments):
     """Parse a list of kernel arguments. *arguments* may be a comma-separate
