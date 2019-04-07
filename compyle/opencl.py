@@ -72,6 +72,9 @@ def profile_kernel(kernel, name):
         return event
 
     if get_config().profile:
+        wgi = getattr(kernel, 'get_work_group_info', None)
+        if wgi is not None:
+            _profile_knl.get_work_group_info = wgi
         return _profile_knl
     else:
         return kernel
