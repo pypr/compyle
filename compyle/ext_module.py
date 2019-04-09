@@ -22,6 +22,8 @@ if sys.platform == 'win32':
 else:
     from distutils.extension import Extension
 
+PY3 = sys.version_info.major > 2
+
 try:
     from mpi4py import MPI
 except ImportError:
@@ -51,6 +53,13 @@ def get_md5(data):
     """Return the MD5 sum of the given data.
     """
     return hashlib.md5(data.encode()).hexdigest()
+
+
+def get_unicode(s):
+    if PY3:
+        return s
+    else:
+        return unicode(s)
 
 
 class ExtModule(object):
@@ -174,7 +183,7 @@ class ExtModule(object):
     def _write_source(self, path):
         if not exists(path):
             with io.open(path, 'w', encoding='utf-8') as f:
-                f.write(self.code)
+                f.write(get_unicode(self.code))
 
     def _setup_root(self, root):
         if root is None:
