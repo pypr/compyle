@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 from distutils.sysconfig import get_config_var
-import io
+from io import open as io_open
 import os
 from os.path import join, exists
 import shutil
@@ -27,7 +27,7 @@ def _check_write_source(root):
     orig_side_effect = m.side_effect
 
     def _side_effect(*args, **kw):
-        with io.open(*args, **kw) as fp:
+        with io_open(*args, **kw) as fp:
             fp.write("junk")
         return orig_side_effect(*args, **kw)
     m.side_effect = _side_effect
