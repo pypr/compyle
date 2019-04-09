@@ -31,7 +31,7 @@ def _check_write_source(root):
         return orig_side_effect(*args, **kw)
     m.side_effect = _side_effect
 
-    with mock.patch('compyle.ext_module.open', m, create=True):
+    with mock.patch('compyle.ext_module.io.open', m, create=True):
         ExtModule("print('hello')", root=root)
     return m.call_count
 

@@ -6,6 +6,7 @@ from distutils.errors import CompileError, LinkError
 import hashlib
 import imp
 import importlib
+import io
 import logging
 import numpy
 import os
@@ -172,7 +173,7 @@ class ExtModule(object):
 
     def _write_source(self, path):
         if not exists(path):
-            with open(path, 'w') as f:
+            with io.open(path, 'w', encoding='utf-8') as f:
                 f.write(self.code)
 
     def _setup_root(self, root):
