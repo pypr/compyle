@@ -1,3 +1,4 @@
+import io
 import os
 import sys
 from tempfile import mktemp
@@ -38,7 +39,7 @@ class CaptureStream(object):
             return self
         self.orig_stream = os.dup(self.fileno)
         self.tmp_path = mktemp()
-        self.tmp_stream = open(self.tmp_path, 'w+')
+        self.tmp_stream = io.open(self.tmp_path, 'w+', encoding='utf-8')
         os.dup2(self.tmp_stream.fileno(), self.fileno)
         return self
 
