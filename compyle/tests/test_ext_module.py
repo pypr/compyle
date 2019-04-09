@@ -15,7 +15,7 @@ try:
 except ImportError:
     import mock
 
-from ..ext_module import get_md5, ExtModule, get_ext_extension
+from ..ext_module import get_md5, ExtModule, get_ext_extension, get_unicode
 
 
 def _check_write_source(root):
@@ -28,7 +28,7 @@ def _check_write_source(root):
 
     def _side_effect(*args, **kw):
         with io_open(*args, **kw) as fp:
-            fp.write("junk")
+            fp.write(get_unicode("junk"))
         return orig_side_effect(*args, **kw)
     m.side_effect = _side_effect
 
