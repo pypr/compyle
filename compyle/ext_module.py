@@ -188,7 +188,7 @@ class ExtModule(object):
     def _setup_root(self, root):
         if root is None:
             plat_dir = get_platform_dir()
-            self.root = expanduser(join('~', '.cpy', 'source', plat_dir))
+            self.root = expanduser(join('~', '.compyle', 'source', plat_dir))
         else:
             self.root = root
 
