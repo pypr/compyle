@@ -25,7 +25,7 @@ def wrap_array(arr, backend):
         if backend == 'opencl' or backend == 'cuda':
             use_double = get_config().use_double
             _dtype = np.float64 if use_double else np.float32
-            if np.issubdtype(arr.dtype, np.float):
+            if np.issubdtype(arr.dtype, np.floating):
                 wrapped_array.dtype = _dtype
                 wrapped_array.data = arr.astype(_dtype)
             q = None
