@@ -4,6 +4,7 @@ from pytools import memoize_method
 from .config import get_config
 from .types import annotate, dtype_to_knowntype
 from .parallel import Elementwise
+from .template import Template
 
 try:
     import pycuda
@@ -219,6 +220,19 @@ def sum(ary, backend=None):
         return gpuarray.sum(ary.dev).get()
 
 
+def argsort(ary, backend=None):
+    if backend is None:
+        backend = ary.backend
+    if backend == 'cython':
+        result = np.argsort(ary.dev)
+        return wrap_array(result, backend=backend)
+    elif backend == 'cuda':
+        from compyle.cuda import argsort
+        return argsort(ary)
+    else:
+        raise ValueError("Only cython and cuda backends supported")
+
+
 @annotate
 def take_elwise(i, indices, ary, out_ary):
     out_ary[i] = ary[indices[i]]
@@ -227,15 +241,14 @@ def take_elwise(i, indices, ary, out_ary):
 def take(ary, indices, backend=None, out=None):
     if backend is None:
         backend = ary.backend
+    if out is None:
+        out = empty(indices.length, ary.dtype, backend=backend)
     if backend == 'opencl' or backend == 'cuda':
         take_knl = Elementwise(take_elwise, backend=backend)
-        if out is None:
-            out = empty(indices.length, ary.dtype, backend=backend)
         take_knl(indices, ary, out)
-        return out
     elif backend == 'cython':
-        output = np.take(ary.dev, indices.dev, out=out.dev)
-        return wrap_array(output, backend)
+        np.take(ary.dev, indices.dev, out=out.dev)
+    return out
 
 
 @annotate
@@ -261,6 +274,44 @@ def cumsum(ary, backend=None, out=None):
     elif backend == 'cython':
         output = np.cumsum(ary, out=out)
         return wrap_array(output, backend)
+
+
+class AlignMultiple(Template):
+    def __init__(self, name, num_arys):
+        super(AlignMultiple, self).__init__(name=name)
+        self.num_arys = num_arys
+
+    def extra_args(self):
+        args = ['inp_%s' % num for num in range(self.num_arys)]
+        args += ['out_%s' % num for num in range(self.num_arys)]
+        return args, {}
+
+    def template(self, i, order):
+        '''
+        % for num in range(obj.num_arys):
+        out_${num}[i] = inp_${num}[order[i]]
+        % endfor
+        '''
+
+
+def align(ary_list, order, out_list=None, backend=None):
+    if backend is None:
+        backend = order.backend
+    if not out_list:
+        out_list = []
+        for ary in ary_list:
+            out_list.append(empty(order.length, ary.dtype,
+                            backend=ary.backend))
+
+    args_list = [order] + ary_list + out_list
+
+    align_multiple_knl = AlignMultiple('align_multiple_knl',
+                                       len(ary_list)).function
+    align_multiple_elwise = Elementwise(align_multiple_knl,
+                                        backend=backend)
+    align_multiple_elwise(*args_list)
+
+    return out_list
 
 
 class Array(object):
@@ -348,11 +399,15 @@ class Array(object):
     def _get_np_data(self):
         return self.data
 
-    def get_buff(self, offset=0):
-        if self.backend == 'cython':
-            return self.dev[offset:]
-        elif self.backend == 'cuda':
+    def get_buff(self, offset=0, length=0):
+        if not length:
             nbytes = int(self.dev.nbytes - offset * self.dev.itemsize)
+        else:
+            nbytes = length * self.dev.itemsize
+        if self.backend == 'cython':
+            length = nbytes // self.dev.itemsize
+            return self.dev[offset:offset + length]
+        elif self.backend == 'cuda':
             return cu_bufint(self._data, nbytes, int(offset))
 
     def get(self):
@@ -410,7 +465,7 @@ class Array(object):
         return self._data
 
     def copy(self):
-        arr_copy = Array(self.dtype, backend=self.backend)
+        arr_copy = Array(self.dtype, backend=self.backend, allocate=False)
         arr_copy.set_data(self.dev.copy())
         return arr_copy
 

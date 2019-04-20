@@ -14,6 +14,8 @@ def set_context():
 
 import numpy as np
 
+from compyle.thrust.sort import argsort
+
 import pycuda.driver as drv
 import pycuda.gpuarray as gpuarray
 from pycuda.compiler import SourceModule

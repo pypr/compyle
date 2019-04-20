@@ -4,8 +4,7 @@ import compyle.array as carr
 import numpy as np
 
 cpdef argsort(array):
-    idx_array = carr.empty(array.length, np.intp,
-                           backend='cuda')
+    idx_array = carr.empty(array.length, np.intp, backend='cuda')
 
     cdef vector[int] shape
     shape.push_back(<int> array.length)

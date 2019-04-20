@@ -173,6 +173,29 @@ def test_align(backend):
 
 
 @test_all_backends
+def test_align_multiple(backend):
+    check_import(backend)
+
+    # Given
+    dev_array_a = Array(np.uint32, backend=backend)
+    dev_array_b = Array(np.float32, backend=backend)
+    orig_array_a = array.arange(0, 1024, 1, dtype=np.uint32, backend=backend)
+    orig_array_b = array.arange(1024, 2048, 1, dtype=np.float32, backend=backend)
+    dev_array_a.set_data(orig_array_a)
+    dev_array_b.set_data(orig_array_b)
+
+    indices = array.arange(1023, -1, -1, dtype=np.int64, backend=backend)
+
+    # When
+    dev_array_a, dev_array_b = array.align([dev_array_a, dev_array_b],
+                                           indices)
+
+    # Then
+    assert np.all(dev_array_a.get() == indices.get())
+    assert np.all(dev_array_b.get() - 1024 == indices.get())
+
+
+@test_all_backends
 def test_squeeze(backend):
     check_import(backend)
 
