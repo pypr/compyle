@@ -294,7 +294,7 @@ def test_known_math_constants():
     src = dedent('''
     x = M_E + M_LOG2E + M_LOG10E + M_LN2 + M_LN10
     x += M_PI + M_PI_2 + M_PI_4 + M_1_PI * M_2_PI
-    x += M_2_SQRTPI * M_SQRT2 * M_SQRT1_2 * pi
+    x += M_2_SQRTPI * M_SQRT2 * M_SQRT1_2
     x = INFINITY
     x = NAN
     x = HUGE_VALF
@@ -308,7 +308,7 @@ def test_known_math_constants():
     double x;
     x = ((((M_E + M_LOG2E) + M_LOG10E) + M_LN2) + M_LN10);
     x += (((M_PI + M_PI_2) + M_PI_4) + (M_1_PI * M_2_PI));
-    x += (((M_2_SQRTPI * M_SQRT2) * M_SQRT1_2) * pi);
+    x += ((M_2_SQRTPI * M_SQRT2) * M_SQRT1_2);
     x = INFINITY;
     x = NAN;
     x = HUGE_VALF;

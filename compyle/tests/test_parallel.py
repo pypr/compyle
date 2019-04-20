@@ -10,6 +10,8 @@ from ..types import annotate
 from ..parallel import Elementwise, Reduction, Scan
 from .test_jit import g
 
+MY_CONST = 42
+
 
 @annotate(x='int', return_='int')
 def external(x):
@@ -29,6 +31,17 @@ class ParallelUtilsBase(object):
         importorskip('pycuda')
 
         self._check_simple_elementwise(backend='cuda')
+
+    def test_elementwise_works_with_global_constant_cython(self):
+        self._check_elementwise_with_constant(backend='cython')
+
+    def test_elementwise_works_with_global_constant_opencl(self):
+        importorskip('pyopencl')
+        self._check_elementwise_with_constant(backend='opencl')
+
+    def test_elementwise_works_with_global_constant_cuda(self):
+        importorskip('pycuda')
+        self._check_elementwise_with_constant(backend='cuda')
 
     def test_reduction_works_without_map_cython(self):
         self._check_simple_reduction(backend='cython')
@@ -184,6 +197,23 @@ class TestParallelUtils(ParallelUtilsBase, unittest.TestCase):
         # Then
         y.pull()
         self.assertTrue(np.allclose(y.data, a * np.sin(x.data) + b))
+
+    def _check_elementwise_with_constant(self, backend):
+        # Given
+        @annotate(i='int', x='doublep')
+        def set_const(i, x):
+            x[i] = MY_CONST
+
+        x = np.zeros(100)
+        x = wrap(x, backend=backend)
+
+        # When
+        e = Elementwise(set_const, backend=backend)
+        e(x)
+
+        # Then
+        x.pull()
+        np.testing.assert_almost_equal(x.data, MY_CONST)
 
     def _check_simple_reduction(self, backend):
         x = np.linspace(0, 1, 1000) / 1000
@@ -425,6 +455,23 @@ class TestParallelUtilsJIT(ParallelUtilsBase, unittest.TestCase):
         # Then
         y.pull()
         self.assertTrue(np.allclose(y.data, a * np.sin(x.data) + b))
+
+    def _check_elementwise_with_constant(self, backend):
+        # Given
+        @annotate
+        def set_const(i, x):
+            x[i] = MY_CONST
+
+        x = np.zeros(100)
+        x = wrap(x, backend=backend)
+
+        # When
+        e = Elementwise(set_const, backend=backend)
+        e(x)
+
+        # Then
+        x.pull()
+        np.testing.assert_almost_equal(x.data, MY_CONST)
 
     def _check_simple_reduction(self, backend):
         x = np.linspace(0, 1, 1000) / 1000
