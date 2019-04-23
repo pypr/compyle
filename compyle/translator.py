@@ -127,7 +127,7 @@ class CConverter(ast.NodeVisitor):
             'M_E', 'M_LOG2E', 'M_LOG10E', 'M_LN2', 'M_LN10',
             'M_PI', 'M_PI_2', 'M_PI_4', 'M_1_PI', 'M_2_PI',
             'M_2_SQRTPI', 'M_SQRT2', 'M_SQRT1_2',
-            'INFINITY', 'NAN', 'HUGE_VALF', 'pi'
+            'INFINITY', 'NAN', 'HUGE_VALF'
         ))
         self._name_ctx = (ast.Load, ast.Store)
         self._indent = ''
@@ -235,6 +235,14 @@ class CConverter(ast.NodeVisitor):
 
     def _get_local_declarations(self):
         return ''
+
+    def add_known(self, names):
+        '''Add a known name that should not be auto-declared.
+
+        This is useful when we are declaring global constants for which we
+        should not redeclare the types in the generated code.
+        '''
+        self._known.update(names)
 
     def convert(self, src, ignore_methods=None):
         if ignore_methods is not None:
