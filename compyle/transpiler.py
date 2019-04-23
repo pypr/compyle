@@ -23,12 +23,12 @@ BUILTIN_SYMBOLS = set(
     'LID_0 LID_1 LID_2 GID_0 GID_1 GID_2 LDIM_0 LDIM_1 LDIM_2 '
     'GDIM_0 GDIM_1 GDIM_2 '
     'M_E M_LOG2E M_LOG10E M_LN2 M_LN10 M_PI M_PI_2 M_PI_4 '
-    'M_1_PI M_2_PI M_2_SQRTPI M_SQRT2 M_SQRT1_2 pi '
+    'M_1_PI M_2_PI M_2_SQRTPI M_SQRT2 M_SQRT1_2 '
     'INFINITY NAN HUGE_VALF'.split()
 )
 
 CY_BUILTIN_SYMBOLS = BUILTIN_SYMBOLS | set(
-    ['HUGE_VAL', 'HUGE_VALL', 'e']
+    ['HUGE_VAL', 'HUGE_VALL', 'e', 'pi']
 )
 
 OCL_BUILTIN_SYMBOLS = BUILTIN_SYMBOLS | set(['MAXFLOAT'])
@@ -143,7 +143,6 @@ class Transpiler(object):
             from libc.stdio cimport printf
             from libc.math cimport *
             from libc.math cimport fabs as abs
-            from libc.math cimport M_PI as pi
             from cython.parallel import parallel, prange
             ''')
         elif backend == 'opencl':
@@ -158,10 +157,11 @@ class Transpiler(object):
             #define max(x, y) fmax((double)(x), (double)(y))
 
             #ifdef __APPLE__
+            #ifndef M_PI
             #define M_PI 3.14159265358979323846
             #endif
+            #endif
 
-            __constant double pi=M_PI;
             ''')
         elif backend == 'cuda':
             from pycuda._cluda import CLUDA_PREAMBLE
@@ -174,7 +174,6 @@ class Transpiler(object):
             self.header = cluda + dedent('''
             #define max(x, y) fmax((double)(x), (double)(y))
 
-            __constant__ double pi= 3.141592654f;
             ''')
 
     def _handle_symbol(self, name, value):
@@ -240,11 +239,13 @@ class Transpiler(object):
         if implicit:
             msg = ('Warning: the following symbols are implicitly defined.\n'
                    '  %s\n'
-                   'You may want to explicitly declare/define them.')
+                   'You may want to explicitly declare/define them.'
+                   % implicit)
             print(msg)
 
         self._handle_externs(externs)
         self._handle_symbols(syms)
+        self._cgen.add_known(syms)
 
         for f in calls:
             self.add(f, declarations=declarations)

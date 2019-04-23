@@ -376,7 +376,7 @@ def drop_duplicates(arr):
 
 
 class ElementwiseBase(object):
-    def __init__(self, func, backend='cython'):
+    def __init__(self, func, backend=None):
         backend = array.get_backend(backend)
         self.tp = Transpiler(backend=backend)
         self.backend = backend
@@ -508,7 +508,7 @@ class ElementwiseBase(object):
 
 
 class Elementwise(object):
-    def __init__(self, func, backend='cython'):
+    def __init__(self, func, backend=None):
         if getattr(func, '__annotations__', None) and not hasattr(func, 'is_jit'):
             self.elementwise = ElementwiseBase(func, backend=backend)
         else:
