@@ -302,7 +302,7 @@ class CConverter(ast.NodeVisitor):
         src = dedent(getsource(obj))
         fname = obj.__name__
         self._declarations = declarations
-        self._annotations[fname] = getattr(obj, '__annotations__', None)
+        self._annotations[fname] = getattr(obj, '__annotations__', {})
         self._local_decl = self._get_local_info(obj)
         code = self.convert(src)
         self._local_decl = None
