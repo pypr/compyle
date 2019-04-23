@@ -509,7 +509,8 @@ class ElementwiseBase(object):
 
 class Elementwise(object):
     def __init__(self, func, backend=None):
-        if getattr(func, '__annotations__', None) and not hasattr(func, 'is_jit'):
+        if getattr(func, '__annotations__',
+                   None) and not hasattr(func, 'is_jit'):
             self.elementwise = ElementwiseBase(func, backend=backend)
         else:
             from .jit import ElementwiseJIT

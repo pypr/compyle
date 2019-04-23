@@ -8,11 +8,13 @@ from .parallel import Elementwise
 try:
     import pycuda
     if pycuda.VERSION >= (2014, 1):
-        cu_bufint = lambda arr, nbytes, offset: arr.gpudata.as_buffer(nbytes, offset)
+        def cu_bufint(arr, nbytes, offset):
+            return arr.gpudata.as_buffer(nbytes, offset)
     else:
         import cffi
         ffi = cffi.FFI()
-        cu_bufint = lambda arr, nbytes, offset: ffi.buffer(ffi.cast('void *', arr.ptr), arr.nbytes)
+        def cu_bufint(arr, nbytes, offset):
+            return ffi.buffer(ffi.cast('void *', arr.ptr), arr.nbytes)
 except ImportError as e:
     pass
 
