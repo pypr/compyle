@@ -227,15 +227,15 @@ def take_elwise(i, indices, ary, out_ary):
 def take(ary, indices, backend=None, out=None):
     if backend is None:
         backend = ary.backend
+    if out is None:
+        out = empty(indices.length, ary.dtype, backend=backend)
     if backend == 'opencl' or backend == 'cuda':
         take_knl = Elementwise(take_elwise, backend=backend)
-        if out is None:
-            out = empty(indices.length, ary.dtype, backend=backend)
         take_knl(indices, ary, out)
         return out
     elif backend == 'cython':
-        output = np.take(ary.dev, indices.dev, out=out.dev)
-        return wrap_array(output, backend)
+        np.take(ary.dev, indices.dev, out=out.dev)
+    return out
 
 
 class Array(object):

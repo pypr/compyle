@@ -509,7 +509,7 @@ class ElementwiseBase(object):
 
 class Elementwise(object):
     def __init__(self, func, backend='cython'):
-        if getattr(func, '__annotations__', None):
+        if getattr(func, '__annotations__', None) and not hasattr(func, 'is_jit'):
             self.elementwise = ElementwiseBase(func, backend=backend)
         else:
             from .jit import ElementwiseJIT
@@ -733,7 +733,8 @@ class ReductionBase(object):
 class Reduction(object):
     def __init__(self, reduce_expr, map_func=None, dtype_out=np.float64,
                  neutral='0', backend='cython'):
-        if map_func is None or getattr(map_func, '__annotations__', None):
+        if map_func is None or getattr(map_func, '__annotations__', None) and \
+                not hasattr(map_func, 'is_jit'):
             self.reduction = ReductionBase(reduce_expr, map_func=map_func,
                                            dtype_out=dtype_out,
                                            neutral=neutral,
@@ -1093,11 +1094,14 @@ class Scan(object):
                  is_segment=None, dtype=np.float64, neutral='0',
                  complex_map=False, backend='opencl'):
         input_base = input is None or \
-            getattr(input, '__annotations__', None)
+            getattr(input, '__annotations__', None) and \
+            not hasattr(input, 'is_jit')
         output_base = output is None or \
-            getattr(output, '__annotations__', None)
+            getattr(output, '__annotations__', None) and \
+            not hasattr(input, 'is_jit')
         is_segment_base = is_segment is None or \
-            getattr(is_segment, '__annotations__', None)
+            getattr(is_segment, '__annotations__', None) and \
+            not hasattr(input, 'is_jit')
 
         if input_base and output_base and is_segment_base:
             self.scan = ScanBase(input=input, output=output,

@@ -20,13 +20,15 @@ from . import parallel
 
 def kernel_cache_key_args(obj, *args):
     key = [get_ctype_from_arg(arg) for arg in args]
-    key.append(obj)
+    key.append(obj.name)
+    key.append(obj.backend)
     return tuple(key)
 
 
 def kernel_cache_key_kwargs(obj, **kwargs):
     key = [get_ctype_from_arg(arg) for arg in kwargs.values()]
-    key.append(obj)
+    key.append(obj.name)
+    key.append(obj.backend)
     return tuple(key)
 
 
@@ -245,7 +247,7 @@ class AnnotationHelper(ast.NodeVisitor):
 
 
 class ElementwiseJIT(parallel.ElementwiseBase):
-    def __init__(self, func, backend='cython'):
+    def __init__(self, func, backend=None):
         backend = array.get_backend(backend)
         self.tp = Transpiler(backend=backend)
         self.backend = backend
@@ -253,7 +255,9 @@ class ElementwiseJIT(parallel.ElementwiseBase):
         self.func = func
         self._config = get_config()
         self.cython_gen = CythonGenerator()
-        self.queue = None
+        if backend == 'opencl':
+            from .opencl import get_context, get_queue
+            self.queue = get_queue()
 
     def get_type_info_from_args(self, *args):
         type_info = {}
@@ -326,7 +330,9 @@ class ReductionJIT(parallel.ReductionBase):
             self.neutral = neutral
         self._config = get_config()
         self.cython_gen = CythonGenerator()
-        self.queue = None
+        if backend == 'opencl':
+            from .opencl import get_context, get_queue
+            self.queue = get_queue()
 
     def get_type_info_from_args(self, *args):
         type_info = {}
@@ -406,7 +412,9 @@ class ScanJIT(parallel.ScanBase):
             self.neutral = neutral
         self._config = get_config()
         self.cython_gen = CythonGenerator()
-        self.queue = None
+        if backend == 'opencl':
+            from .opencl import get_context, get_queue
+            self.queue = get_queue()
         builtin_symbols = ['item', 'prev_item', 'last_item']
         self.builtin_types = {'i': 'int', 'N': 'int'}
         for sym in builtin_symbols:
