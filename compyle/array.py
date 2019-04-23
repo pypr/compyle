@@ -3,7 +3,6 @@ from pytools import memoize_method
 
 from .config import get_config
 from .types import annotate, dtype_to_knowntype
-from .parallel import Elementwise
 
 try:
     import pycuda
@@ -227,12 +226,13 @@ def take_elwise(i, indices, ary, out_ary):
 
 
 def take(ary, indices, backend=None, out=None):
+    import compyle.parallel as parallel
     if backend is None:
         backend = ary.backend
     if out is None:
         out = empty(indices.length, ary.dtype, backend=backend)
     if backend == 'opencl' or backend == 'cuda':
-        take_knl = Elementwise(take_elwise, backend=backend)
+        take_knl = parallel.Elementwise(take_elwise, backend=backend)
         take_knl(indices, ary, out)
         return out
     elif backend == 'cython':
