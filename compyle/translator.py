@@ -311,7 +311,8 @@ class CConverter(ast.NodeVisitor):
         return code
 
     def render_atomic(self, func, arg):
-        raise NotImplementedError("Atomics only supported by CUDA/OpenCL backends")
+        raise NotImplementedError(
+            "Atomics only supported by CUDA/OpenCL backends")
 
     def visit_LShift(self, node):
         return '<<'
@@ -770,6 +771,7 @@ class OpenCLConverter(CConverter):
             return 'atomic_inc(&%s)' % self.visit(arg)
         else:
             raise NotImplementedError("Only atomic_inc supported right now")
+
 
 class CUDAConverter(OpenCLConverter):
     def __init__(self, detect_type=ocl_detect_type, known_types=None):

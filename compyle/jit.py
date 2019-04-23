@@ -20,15 +20,19 @@ from . import parallel
 
 def kernel_cache_key_args(obj, *args):
     key = [get_ctype_from_arg(arg) for arg in args]
-    key.append(obj.name)
+    key.append(obj.func)
     key.append(obj.backend)
+    key.append(obj._config.use_openmp)
     return tuple(key)
 
 
 def kernel_cache_key_kwargs(obj, **kwargs):
     key = [get_ctype_from_arg(arg) for arg in kwargs.values()]
-    key.append(obj.name)
+    key.append(obj.input_func)
+    key.append(obj.output_func)
+    key.append(obj.scan_expr)
     key.append(obj.backend)
+    key.append(obj._config.use_openmp)
     return tuple(key)
 
 
@@ -403,7 +407,6 @@ class ScanJIT(parallel.ScanBase):
         self.scan_expr = scan_expr
         self.dtype = dtype
         self.type = dtype_to_ctype(dtype)
-        self.arg_keys = None
         if backend == 'cython':
             # On Windows, INFINITY is not defined so we use INFTY which we
             # internally define.
@@ -477,15 +480,15 @@ class ScanJIT(parallel.ScanBase):
         c_args_dict = {k: self._massage_arg(x) for k, x in kwargs.items()}
 
         if self.backend == 'cython':
-            size = len(c_args_dict[self.arg_keys[1]])
+            size = len(c_args_dict[self.output_func.arg_keys[1]])
             c_args_dict['SIZE'] = size
-            c_func(*[c_args_dict[k] for k in self.arg_keys])
+            c_func(*[c_args_dict[k] for k in self.output_func.arg_keys])
         elif self.backend == 'opencl':
-            c_func(*[c_args_dict[k] for k in self.arg_keys])
+            c_func(*[c_args_dict[k] for k in self.output_func.arg_keys])
             self.queue.finish()
         elif self.backend == 'cuda':
             import pycuda.driver as drv
             event = drv.Event()
-            c_func(*[c_args_dict[k] for k in self.arg_keys])
+            c_func(*[c_args_dict[k] for k in self.output_func.arg_keys])
             event.record()
             event.synchronize()

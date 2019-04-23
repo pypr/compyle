@@ -509,7 +509,8 @@ class ElementwiseBase(object):
 
 class Elementwise(object):
     def __init__(self, func, backend=None):
-        if getattr(func, '__annotations__', None) and not hasattr(func, 'is_jit'):
+        if getattr(func, '__annotations__',
+                   None) and not hasattr(func, 'is_jit'):
             self.elementwise = ElementwiseBase(func, backend=backend)
         else:
             from .jit import ElementwiseJIT
@@ -771,7 +772,6 @@ class ScanBase(object):
         self.scan_expr = scan_expr
         self.dtype = dtype
         self.type = dtype_to_ctype(dtype)
-        self.arg_keys = None
         if backend == 'cython':
             # On Windows, INFINITY is not defined so we use INFTY which we
             # internally define.
@@ -904,7 +904,7 @@ class ScanBase(object):
         py_args = drop_duplicates(py_args)
         c_args = drop_duplicates(c_args)
 
-        self.arg_keys = c_args
+        self.output_func.arg_keys = c_args
 
         if self._config.use_openmp:
             template = Template(text=scan_cy_template)
@@ -989,7 +989,7 @@ class ScanBase(object):
 
         c_args = input_c_args + segment_c_args + output_c_args
         c_args = drop_duplicates(c_args)
-        self.arg_keys = c_args
+        self.output_func.arg_keys = c_args
 
         return scan_expr, arg_defn, input_expr, output_expr, \
             segment_expr, preamble
@@ -1075,16 +1075,16 @@ class ScanBase(object):
         c_args_dict = {k: self._massage_arg(x) for k, x in kwargs.items()}
 
         if self.backend == 'cython':
-            size = len(c_args_dict[self.arg_keys[1]])
+            size = len(c_args_dict[self.output_func.arg_keys[1]])
             c_args_dict['SIZE'] = size
-            self.c_func(*[c_args_dict[k] for k in self.arg_keys])
+            self.c_func(*[c_args_dict[k] for k in self.output_func.arg_keys])
         elif self.backend == 'opencl':
-            self.c_func(*[c_args_dict[k] for k in self.arg_keys])
+            self.c_func(*[c_args_dict[k] for k in self.output_func.arg_keys])
             self.queue.finish()
         elif self.backend == 'cuda':
             import pycuda.driver as drv
             event = drv.Event()
-            self.c_func(*[c_args_dict[k] for k in self.arg_keys])
+            self.c_func(*[c_args_dict[k] for k in self.output_func.arg_keys])
             event.record()
             event.synchronize()
 

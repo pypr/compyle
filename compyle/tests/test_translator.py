@@ -1334,6 +1334,7 @@ def test_address_works():
     ''')
     assert code.strip() == expect.strip()
 
+
 def test_atomic_works():
     # Given
     def f(x=1.0):
