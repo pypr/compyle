@@ -6,6 +6,7 @@ from distutils.errors import CompileError, LinkError
 import hashlib
 import imp
 import importlib
+import io
 import logging
 import numpy
 import os
@@ -20,6 +21,8 @@ if sys.platform == 'win32':
     from setuptools.extension import Extension
 else:
     from distutils.extension import Extension
+
+PY3 = sys.version_info.major > 2
 
 try:
     from mpi4py import MPI
@@ -50,6 +53,13 @@ def get_md5(data):
     """Return the MD5 sum of the given data.
     """
     return hashlib.md5(data.encode()).hexdigest()
+
+
+def get_unicode(s):
+    if PY3:
+        return s
+    else:
+        return unicode(s)
 
 
 class ExtModule(object):
@@ -109,7 +119,6 @@ class ExtModule(object):
             self.num_procs = 1
 
         self.shared_filesystem = False
-        self._create_source()
 
     def _add_local_include(self):
         if sys.platform != 'win32':
@@ -172,13 +181,13 @@ class ExtModule(object):
 
     def _write_source(self, path):
         if not exists(path):
-            with open(path, 'w') as f:
-                f.write(self.code)
+            with io.open(path, 'w', encoding='utf-8') as f:
+                f.write(get_unicode(self.code))
 
     def _setup_root(self, root):
         if root is None:
             plat_dir = get_platform_dir()
-            self.root = expanduser(join('~', '.cpy', 'source', plat_dir))
+            self.root = expanduser(join('~', '.compyle', 'source', plat_dir))
         else:
             self.root = root
 
@@ -220,61 +229,60 @@ class ExtModule(object):
         """Build source into an extension module.  If force is False
         previously compiled module is returned.
         """
-        if not self.shared_filesystem or self.rank == 0:
-            with self._lock():
-                if force or self.should_recompile():
-                    self._message("Compiling code at:", self.src_path)
-                    inc_dirs = [numpy.get_include()]
-                    inc_dirs.extend(self.extra_inc_dirs)
-                    extra_compile_args, extra_link_args = (
-                        self._get_extra_args()
-                    )
+        if force or self.should_recompile():
+            self._message("Compiling code at:", self.src_path)
+            inc_dirs = [numpy.get_include()]
+            inc_dirs.extend(self.extra_inc_dirs)
+            extra_compile_args, extra_link_args = (
+                self._get_extra_args()
+            )
 
-                    extension = Extension(
-                        name=self.name, sources=[self.src_path],
-                        include_dirs=inc_dirs,
-                        extra_compile_args=extra_compile_args,
-                        extra_link_args=extra_link_args,
-                        language="c++"
-                    )
+            extension = Extension(
+                name=self.name, sources=[self.src_path],
+                include_dirs=inc_dirs,
+                extra_compile_args=extra_compile_args,
+                extra_link_args=extra_link_args,
+                language="c++"
+            )
 
-                    if not hasattr(sys.stdout, 'errors'):
-                        # FIXME: This happens when nosetests replaces the
-                        # stdout with the a Tee instance.  This Tee instance
-                        # does not have errors which breaks the tests so we
-                        # disable verbose reporting.
-                        script_args = []
-                    else:
-                        script_args = ['--verbose']
-                    try:
-                        with CaptureMultipleStreams() as stream:
-                            mod = pyxbuild.pyx_to_dll(
-                                self.src_path, extension,
-                                pyxbuild_dir=self.build_dir,
-                                force_rebuild=True,
-                                setup_args={'script_args': script_args}
-                            )
-                    except (CompileError, LinkError):
-                        hline = "*"*80
-                        print(hline + "\nERROR")
-                        print(stream.get_output()[0])
-                        print(stream.get_output()[1])
-                        msg = "Compilation of code failed, please check "\
-                              "error messages above."
-                        print(hline + "\n" + msg)
-                        sys.exit(1)
-                    shutil.copy(mod, self.ext_path)
-                else:
-                    self._message("Precompiled code from:", self.src_path)
-        if MPI is not None and MPI.Is_initialized():
-            self.comm.barrier()
+            if not hasattr(sys.stdout, 'errors'):
+                # FIXME: This happens when nosetests replaces the
+                # stdout with the a Tee instance.  This Tee instance
+                # does not have errors which breaks the tests so we
+                # disable verbose reporting.
+                script_args = []
+            else:
+                script_args = ['--verbose']
+            try:
+                with CaptureMultipleStreams() as stream:
+                    mod = pyxbuild.pyx_to_dll(
+                        self.src_path, extension,
+                        pyxbuild_dir=self.build_dir,
+                        force_rebuild=True,
+                        setup_args={'script_args': script_args}
+                    )
+            except (CompileError, LinkError):
+                hline = "*"*80
+                print(hline + "\nERROR")
+                print(stream.get_output()[0])
+                print(stream.get_output()[1])
+                msg = "Compilation of code failed, please check "\
+                      "error messages above."
+                print(hline + "\n" + msg)
+                sys.exit(1)
+            shutil.copy(mod, self.ext_path)
+        else:
+            self._message("Precompiled code from:", self.src_path)
 
     def load(self):
         """Build and load the built extension module.
 
         Returns
         """
-        self.build()
+        if not exists(self.src_path):
+            with self._lock():
+                self._write_source(self.src_path)
+                self.build()
         file, path, desc = imp.find_module(self.name, [dirname(self.ext_path)])
         return imp.load_module(self.name, file, path, desc)
 
