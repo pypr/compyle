@@ -1314,3 +1314,56 @@ def test_handles_parsing_functions():
     }
     ''')
     assert code.strip() == expect.strip()
+
+
+def test_address_works():
+    # Given
+    def f(x=1.0):
+        return address(x)
+
+    # When
+    t = CConverter()
+    code = t.parse_function(f)
+
+    # Then
+    expect = dedent('''
+    double f(double x)
+    {
+        return (&x);
+    }
+    ''')
+    assert code.strip() == expect.strip()
+
+
+def test_atomic_works():
+    # Given
+    def f(x=1.0):
+        return atomic_inc(x)
+
+    # When
+    t = OpenCLConverter()
+    code = t.parse_function(f)
+
+    # Then
+    expect = dedent('''
+    WITHIN_KERNEL double f(double x)
+    {
+        return atomic_inc(&x);
+    }
+    ''')
+
+    assert code.strip() == expect.strip()
+
+    # When
+    t = CUDAConverter()
+    code = t.parse_function(f)
+
+    # Then
+    expect = dedent('''
+    WITHIN_KERNEL double f(double x)
+    {
+        return atomicAdd(&x, 1);
+    }
+    ''')
+
+    assert code.strip() == expect.strip()

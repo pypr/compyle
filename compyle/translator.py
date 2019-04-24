@@ -302,13 +302,17 @@ class CConverter(ast.NodeVisitor):
         src = dedent(getsource(obj))
         fname = obj.__name__
         self._declarations = declarations
-        self._annotations[fname] = getattr(obj, '__annotations__', None)
+        self._annotations[fname] = getattr(obj, '__annotations__', {})
         self._local_decl = self._get_local_info(obj)
         code = self.convert(src)
         self._local_decl = None
         self._annotations = {}
         self._declarations = None
         return code
+
+    def render_atomic(self, func, arg):
+        raise NotImplementedError(
+            "Atomics only supported by CUDA/OpenCL backends")
 
     def visit_LShift(self, node):
         return '<<'
@@ -376,10 +380,15 @@ class CConverter(ast.NodeVisitor):
 
     def visit_Call(self, node):
         if isinstance(node.func, ast.Name):
-            return '{func}({args})'.format(
-                func=node.func.id,
-                args=', '.join(self.visit(x) for x in node.args)
-            )
+            if node.func.id == 'address':
+                return '(&%s)' % self.visit(node.args[0])
+            elif 'atomic' in node.func.id:
+                return self.render_atomic(node.func.id, node.args[0])
+            else:
+                return '{func}({args})'.format(
+                    func=node.func.id,
+                    args=', '.join(self.visit(x) for x in node.args)
+                )
         elif isinstance(node.func, ast.Attribute):
             if node.func.value.id in self._known_types:
                 name = node.func.value.id
@@ -760,6 +769,12 @@ class OpenCLConverter(CConverter):
     def _get_self_type(self):
         return KnownType('GLOBAL_MEM %s*' % self._class_name)
 
+    def render_atomic(self, func, arg):
+        if func == 'atomic_inc':
+            return 'atomic_inc(&%s)' % self.visit(arg)
+        else:
+            raise NotImplementedError("Only atomic_inc supported right now")
+
 
 class CUDAConverter(OpenCLConverter):
     def __init__(self, detect_type=ocl_detect_type, known_types=None):
@@ -803,3 +818,9 @@ class CUDAConverter(OpenCLConverter):
             local_decl = self._indent_block('\n'.join(decls))
             local_decl += '\n'
         return local_decl
+
+    def render_atomic(self, func, arg):
+        if func == 'atomic_inc':
+            return 'atomicAdd(&%s, 1)' % self.visit(arg)
+        else:
+            raise NotImplementedError("Only atomic_inc supported right now")

@@ -4,6 +4,19 @@ from pytools import memoize_method
 from .config import get_config
 from .types import annotate, dtype_to_knowntype
 
+try:
+    import pycuda
+    if pycuda.VERSION >= (2014, 1):
+        def cu_bufint(arr, nbytes, offset):
+            return arr.gpudata.as_buffer(nbytes, offset)
+    else:
+        import cffi
+        ffi = cffi.FFI()
+        def cu_bufint(arr, nbytes, offset):
+            return ffi.buffer(ffi.cast('void *', arr.ptr), arr.nbytes)
+except ImportError as e:
+    pass
+
 
 def get_backend(backend=None):
     if not backend:
@@ -207,18 +220,24 @@ def sum(ary, backend=None):
         return gpuarray.sum(ary.dev).get()
 
 
-def take(ary, indices, backend=None):
+@annotate
+def take_elwise(i, indices, ary, out_ary):
+    out_ary[i] = ary[indices[i]]
+
+
+def take(ary, indices, backend=None, out=None):
+    import compyle.parallel as parallel
     if backend is None:
         backend = ary.backend
-    if backend == 'opencl':
-        import pyopencl.array as gpuarray
-        out = gpuarray.take(ary.dev, indices.dev)
-    elif backend == 'cuda':
-        import pycuda.gpuarray as gpuarray
-        out = gpuarray.take(ary.dev, indices.dev)
+    if out is None:
+        out = empty(indices.length, ary.dtype, backend=backend)
+    if backend == 'opencl' or backend == 'cuda':
+        take_knl = parallel.Elementwise(take_elwise, backend=backend)
+        take_knl(indices, ary, out)
+        return out
     elif backend == 'cython':
-        out = np.take(ary.dev, indices.dev)
-    return wrap_array(out, backend)
+        np.take(ary.dev, indices.dev, out=out.dev)
+    return out
 
 
 class Array(object):
@@ -249,8 +268,10 @@ class Array(object):
     def __getitem__(self, key):
         if isinstance(key, slice):
             return wrap_array(self.dev[key], self.backend)
+        elif isinstance(key, Array):
+            return self.align(key)
         # NOTE: Not sure about this, done for PyCUDA compatibility
-        elif self.backend is not 'cython':
+        if self.backend is not 'cython':
             return self.dev[key].get()
         else:
             return self.dev[key]
@@ -291,6 +312,9 @@ class Array(object):
         ans = other - self.dev
         return wrap_array(ans, self.backend)
 
+    def __str__(self):
+        return self.dev.__str__()
+
     def _update_array_ref(self):
         # For PyCUDA compatibility
         if self.length == 0 and len(self._data) == 0:
@@ -300,6 +324,13 @@ class Array(object):
 
     def _get_np_data(self):
         return self.data
+
+    def get_buff(self, offset=0):
+        if self.backend == 'cython':
+            return self.dev[offset:]
+        elif self.backend == 'cuda':
+            nbytes = int(self.dev.nbytes - offset * self.dev.itemsize)
+            return cu_bufint(self._data, nbytes, int(offset))
 
     def get(self):
         if self.backend == 'cython':
@@ -332,8 +363,8 @@ class Array(object):
         if size > self.alloc:
             new_data = empty(size, self.dtype, backend=self.backend)
             # For PyCUDA compatibility
-            if self.alloc > 0:
-                new_data.dev[:self.alloc] = self._data
+            if self.length > 0:
+                new_data.dev[:self.length] = self.dev
             self._data = new_data.dev
             self.alloc = size
             self._update_array_ref()
@@ -343,9 +374,6 @@ class Array(object):
         # a numpy/cl array/cuda array
         if isinstance(data, Array):
             data = data.dev
-        # FIXME: Find a way around this copy
-        if self.backend == 'cython':
-            data = data.copy()
         self._data = data
         self.length = data.size
         self.alloc = data.size
@@ -435,9 +463,8 @@ class Array(object):
 
         self.set_data(new_array.dev[:-len(indices.dev)])
 
-    def align(self, indices):
-        self.set_data(take(self.get_array(), indices,
-                           backend=self.backend))
+    def align(self, indices, out=None):
+        return take(self, indices, backend=self.backend, out=out)
 
     def squeeze(self):
         self.set_data(self._data[:self.length])

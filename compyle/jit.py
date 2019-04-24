@@ -20,13 +20,19 @@ from . import parallel
 
 def kernel_cache_key_args(obj, *args):
     key = [get_ctype_from_arg(arg) for arg in args]
-    key.append(obj)
+    key.append(obj.func)
+    key.append(obj.backend)
+    key.append(obj._config.use_openmp)
     return tuple(key)
 
 
 def kernel_cache_key_kwargs(obj, **kwargs):
     key = [get_ctype_from_arg(arg) for arg in kwargs.values()]
-    key.append(obj)
+    key.append(obj.input_func)
+    key.append(obj.output_func)
+    key.append(obj.scan_expr)
+    key.append(obj.backend)
+    key.append(obj._config.use_openmp)
     return tuple(key)
 
 
@@ -245,7 +251,7 @@ class AnnotationHelper(ast.NodeVisitor):
 
 
 class ElementwiseJIT(parallel.ElementwiseBase):
-    def __init__(self, func, backend='cython'):
+    def __init__(self, func, backend=None):
         backend = array.get_backend(backend)
         self.tp = Transpiler(backend=backend)
         self.backend = backend
@@ -253,7 +259,9 @@ class ElementwiseJIT(parallel.ElementwiseBase):
         self.func = func
         self._config = get_config()
         self.cython_gen = CythonGenerator()
-        self.queue = None
+        if backend == 'opencl':
+            from .opencl import get_context, get_queue
+            self.queue = get_queue()
 
     def get_type_info_from_args(self, *args):
         type_info = {}
@@ -326,7 +334,9 @@ class ReductionJIT(parallel.ReductionBase):
             self.neutral = neutral
         self._config = get_config()
         self.cython_gen = CythonGenerator()
-        self.queue = None
+        if backend == 'opencl':
+            from .opencl import get_context, get_queue
+            self.queue = get_queue()
 
     def get_type_info_from_args(self, *args):
         type_info = {}
@@ -397,7 +407,6 @@ class ScanJIT(parallel.ScanBase):
         self.scan_expr = scan_expr
         self.dtype = dtype
         self.type = dtype_to_ctype(dtype)
-        self.arg_keys = None
         if backend == 'cython':
             # On Windows, INFINITY is not defined so we use INFTY which we
             # internally define.
@@ -406,7 +415,9 @@ class ScanJIT(parallel.ScanBase):
             self.neutral = neutral
         self._config = get_config()
         self.cython_gen = CythonGenerator()
-        self.queue = None
+        if backend == 'opencl':
+            from .opencl import get_context, get_queue
+            self.queue = get_queue()
         builtin_symbols = ['item', 'prev_item', 'last_item']
         self.builtin_types = {'i': 'int', 'N': 'int'}
         for sym in builtin_symbols:
@@ -469,15 +480,15 @@ class ScanJIT(parallel.ScanBase):
         c_args_dict = {k: self._massage_arg(x) for k, x in kwargs.items()}
 
         if self.backend == 'cython':
-            size = len(c_args_dict[self.arg_keys[1]])
+            size = len(c_args_dict[self.output_func.arg_keys[1]])
             c_args_dict['SIZE'] = size
-            c_func(*[c_args_dict[k] for k in self.arg_keys])
+            c_func(*[c_args_dict[k] for k in self.output_func.arg_keys])
         elif self.backend == 'opencl':
-            c_func(*[c_args_dict[k] for k in self.arg_keys])
+            c_func(*[c_args_dict[k] for k in self.output_func.arg_keys])
             self.queue.finish()
         elif self.backend == 'cuda':
             import pycuda.driver as drv
             event = drv.Event()
-            c_func(*[c_args_dict[k] for k in self.arg_keys])
+            c_func(*[c_args_dict[k] for k in self.output_func.arg_keys])
             event.record()
             event.synchronize()
