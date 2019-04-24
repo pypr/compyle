@@ -300,9 +300,21 @@ class _nogil(Extern):
         pass
 
 
+class _address(Extern):
+    def code(self, backend):
+        if backend == 'cython':
+            return 'from cython import address'
+        else:
+            return ''
+
+    def __call__(self, *args, **kw):
+        pass
+
+
 prange = _prange()
 parallel = _parallel()
 nogil = _nogil()
+address = _address()
 
 
 class Cython(object):

@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from distutils.sysconfig import get_config_var
+from io import open as io_open
 import os
 from os.path import join, exists
 import shutil
@@ -14,7 +15,7 @@ try:
 except ImportError:
     import mock
 
-from ..ext_module import get_md5, ExtModule, get_ext_extension
+from ..ext_module import get_md5, ExtModule, get_ext_extension, get_unicode
 
 
 def _check_write_source(root):
@@ -26,12 +27,12 @@ def _check_write_source(root):
     orig_side_effect = m.side_effect
 
     def _side_effect(*args, **kw):
-        with open(*args, **kw) as fp:
-            fp.write("junk")
+        with io_open(*args, **kw) as fp:
+            fp.write(get_unicode("junk"))
         return orig_side_effect(*args, **kw)
     m.side_effect = _side_effect
 
-    with mock.patch('compyle.ext_module.open', m, create=True):
+    with mock.patch('compyle.ext_module.io.open', m, create=True):
         ExtModule("print('hello')", root=root)
     return m.call_count
 

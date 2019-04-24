@@ -3,17 +3,19 @@ from pytools import memoize_method
 
 from .config import get_config
 from .types import annotate, dtype_to_knowntype
-from .parallel import Elementwise
 from .template import Template
+
 
 try:
     import pycuda
     if pycuda.VERSION >= (2014, 1):
-        cu_bufint = lambda arr, nbytes, offset: arr.gpudata.as_buffer(nbytes, offset)
+        def cu_bufint(arr, nbytes, offset):
+            return arr.gpudata.as_buffer(nbytes, offset)
     else:
         import cffi
         ffi = cffi.FFI()
-        cu_bufint = lambda arr, nbytes, offset: ffi.buffer(ffi.cast('void *', arr.ptr), arr.nbytes)
+        def cu_bufint(arr, nbytes, offset):
+            return ffi.buffer(ffi.cast('void *', arr.ptr), arr.nbytes)
 except ImportError as e:
     pass
 
@@ -239,12 +241,13 @@ def take_elwise(i, indices, ary, out_ary):
 
 
 def take(ary, indices, backend=None, out=None):
+    import compyle.parallel as parallel
     if backend is None:
         backend = ary.backend
     if out is None:
         out = empty(indices.length, ary.dtype, backend=backend)
     if backend == 'opencl' or backend == 'cuda':
-        take_knl = Elementwise(take_elwise, backend=backend)
+        take_knl = parallel.Elementwise(take_elwise, backend=backend)
         take_knl(indices, ary, out)
     elif backend == 'cython':
         np.take(ary.dev, indices.dev, out=out.dev)

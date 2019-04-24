@@ -149,6 +149,11 @@ class CythonGenerator(object):
 
     # ### Public protocol #####################################################
 
+    def add_known(self, names):
+        '''Just for API compatibility with the translator.
+        '''
+        pass
+
     def ctype_to_python(self, type_str):
         """Given a c-style type declaration obtained from the `detect_type`
         method, return a Python friendly type declaration.
@@ -353,7 +358,7 @@ class CythonGenerator(object):
             for var, decl in declarations.items():
                 cy_decls.append((var, indent + 'cdef %s\n' % decl[:-1]))
             src = cy_decls + src
-        declared = [] if not declarations else declarations.keys()
+        declared = [] if not declarations else list(declarations.keys())
         for names, defn in src:
             if names:
                 declared.extend(x.strip() for x in names.split(','))

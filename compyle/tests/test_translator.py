@@ -294,7 +294,7 @@ def test_known_math_constants():
     src = dedent('''
     x = M_E + M_LOG2E + M_LOG10E + M_LN2 + M_LN10
     x += M_PI + M_PI_2 + M_PI_4 + M_1_PI * M_2_PI
-    x += M_2_SQRTPI * M_SQRT2 * M_SQRT1_2 * pi
+    x += M_2_SQRTPI * M_SQRT2 * M_SQRT1_2
     x = INFINITY
     x = NAN
     x = HUGE_VALF
@@ -308,7 +308,7 @@ def test_known_math_constants():
     double x;
     x = ((((M_E + M_LOG2E) + M_LOG10E) + M_LN2) + M_LN10);
     x += (((M_PI + M_PI_2) + M_PI_4) + (M_1_PI * M_2_PI));
-    x += (((M_2_SQRTPI * M_SQRT2) * M_SQRT1_2) * pi);
+    x += ((M_2_SQRTPI * M_SQRT2) * M_SQRT1_2);
     x = INFINITY;
     x = NAN;
     x = HUGE_VALF;
@@ -1313,4 +1313,57 @@ def test_handles_parsing_functions():
         return (x + 1.0);
     }
     ''')
+    assert code.strip() == expect.strip()
+
+
+def test_address_works():
+    # Given
+    def f(x=1.0):
+        return address(x)
+
+    # When
+    t = CConverter()
+    code = t.parse_function(f)
+
+    # Then
+    expect = dedent('''
+    double f(double x)
+    {
+        return (&x);
+    }
+    ''')
+    assert code.strip() == expect.strip()
+
+
+def test_atomic_works():
+    # Given
+    def f(x=1.0):
+        return atomic_inc(x)
+
+    # When
+    t = OpenCLConverter()
+    code = t.parse_function(f)
+
+    # Then
+    expect = dedent('''
+    WITHIN_KERNEL double f(double x)
+    {
+        return atomic_inc(&x);
+    }
+    ''')
+
+    assert code.strip() == expect.strip()
+
+    # When
+    t = CUDAConverter()
+    code = t.parse_function(f)
+
+    # Then
+    expect = dedent('''
+    WITHIN_KERNEL double f(double x)
+    {
+        return atomicAdd(&x, 1);
+    }
+    ''')
+
     assert code.strip() == expect.strip()
