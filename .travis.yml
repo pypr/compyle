@@ -24,7 +24,7 @@ install:
     - conda info -a
     - conda config --add channels conda-forge
     - conda config --add channels defaults
-    - conda install -c conda-forge pocl pyopencl cython numpy
+    - conda install -c conda-forge pocl==1.2 pyopencl cython numpy
     - python -c 'import pyopencl as cl'
     - pip install -r requirements.txt
     - pip install coverage codecov
