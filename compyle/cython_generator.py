@@ -358,7 +358,7 @@ class CythonGenerator(object):
             for var, decl in declarations.items():
                 cy_decls.append((var, indent + 'cdef %s\n' % decl[:-1]))
             src = cy_decls + src
-        declared = [] if not declarations else declarations.keys()
+        declared = [] if not declarations else list(declarations.keys())
         for names, defn in src:
             if names:
                 declared.extend(x.strip() for x in names.split(','))
