@@ -757,7 +757,7 @@ class Reduction(object):
 class ScanBase(object):
     def __init__(self, input=None, output=None, scan_expr="a+b",
                  is_segment=None, dtype=np.float64, neutral='0',
-                 complex_map=False, backend='opencl'):
+                 complex_map=False, backend=None):
         backend = array.get_backend(backend)
         self.tp = Transpiler(backend=backend, incl_cluda=False)
         self.backend = backend
@@ -1092,7 +1092,7 @@ class ScanBase(object):
 class Scan(object):
     def __init__(self, input=None, output=None, scan_expr="a+b",
                  is_segment=None, dtype=np.float64, neutral='0',
-                 complex_map=False, backend='opencl'):
+                 complex_map=False, backend=None):
         input_base = input is None or \
             getattr(input, '__annotations__', None) and \
             not hasattr(input, 'is_jit')

@@ -298,6 +298,7 @@ class AlignMultiple(Template):
 
 
 def align(ary_list, order, out_list=None, backend=None):
+    import compyle.parallel as parallel
     if backend is None:
         backend = order.backend
     if not out_list:
@@ -309,8 +310,8 @@ def align(ary_list, order, out_list=None, backend=None):
     args_list = [order] + ary_list + out_list
 
     align_multiple_knl = AlignMultiple('align_multiple_knl',
-                                       len(ary_list)).function
-    align_multiple_elwise = Elementwise(align_multiple_knl,
+                                       len(ary_list))
+    align_multiple_elwise = parallel.Elementwise(align_multiple_knl.function,
                                         backend=backend)
     align_multiple_elwise(*args_list)
 
@@ -418,6 +419,13 @@ class Array(object):
             return self.dev
         elif self.backend == 'opencl' or self.backend == 'cuda':
             return self.dev.get()
+
+    def get_view(self, offset=0, length=None):
+        if length is None:
+            length = self.length - offset
+        view_arr = Array(self.dtype, allocate=False, backend=self.backend)
+        view_arr.set_data(self.dev[offset:offset + length])
+        return view_arr
 
     def set(self, nparr):
         if self.backend == 'cython':
