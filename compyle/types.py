@@ -187,6 +187,9 @@ if sys.platform.startswith('win'):
     TYPES['glonglongp'] = KnownType('GLOBAL_MEM long long*', 'long long')
     TYPES['gulonglongp'] = KnownType('GLOBAL_MEM unsigned long long*',
                                      'unsigned long long')
+    TYPES['llonglongp'] = KnownType('LOCAL_MEM long long*', 'long long')
+    TYPES['lulonglongp'] = KnownType('LOCAL_MEM unsigned long long*',
+                                     'unsigned long long')
 
 
 NP_TYPE_LIST = list(C_NP_TYPE_MAP.values())
@@ -225,7 +228,7 @@ def dtype_to_knowntype(dtype, address='scalar'):
     ctype = dtype_to_ctype(dtype)
     if 'unsigned' in ctype:
         ctype = 'u%s' % ctype.replace('unsigned ', '')
-    knowntype = ctype
+    knowntype = ctype.replace(' ', '')
     if address == 'ptr':
         knowntype = '%sp' % knowntype
     elif address == 'global':
