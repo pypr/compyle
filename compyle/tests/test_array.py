@@ -245,3 +245,17 @@ def test_min_max(backend):
     # Then
     assert dev_array.minimum == 1
     assert dev_array.maximum == 10
+
+
+@test_all_backends
+def test_sort_by_keys(backend):
+    check_import(backend)
+
+    # Given
+    dev_array = make_dev_array(backend)
+
+    # When
+    out_array = array.sort_by_keys([dev_array])[0]
+
+    # Then
+    assert np.all(out_array.get() == np.sort(dev_array.get()))

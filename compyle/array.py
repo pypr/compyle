@@ -174,7 +174,7 @@ def zeros_like(array, backend=None):
     return wrap_array(out, backend)
 
 
-def arange(start, stop, step, dtype=None, backend='cython'):
+def arange(start, stop, step, dtype=np.int32, backend='cython'):
     if backend == 'opencl':
         import pyopencl.array as gpuarray
         from .opencl import get_queue
@@ -240,13 +240,11 @@ def dot(a, b, backend=None):
         return gpuarray.dot(a.dev, b.dev).get()
 
 
-######### Sorting #################
-
 def sort_by_keys(ary_list, out_list=None, key_bits=None,
                  backend=None):
     # first arg of ary_list is the key
     if backend is None:
-        backend = ary.backend
+        backend = ary_list[0].backend
     if backend == 'opencl':
         import pyopencl as cl
         import pyopencl.algorithm
@@ -281,16 +279,19 @@ def sort_by_keys(ary_list, out_list=None, key_bits=None,
         return out_list
     else:
         order = argsort(ary_list[0], backend=backend)
-        out_list = align(ary_list, order, out_list=out_list,
+        out_list = align(ary_list[1:], order, out_list=out_list,
                          backend=backend)
-        return out_list
+        return [ary_list[0]] + out_list
 
 
 def argsort(ary, backend=None):
+    # FIXME: Implement an OpenCL backend and add tests
+    # NOTE: argsort also sorts the array
     if backend is None:
         backend = ary.backend
     if backend == 'cython':
         result = np.argsort(ary.dev)
+        ary.dev = np.take(ary.dev, result)
         return wrap_array(result, backend=backend)
     elif backend == 'cuda':
         from compyle.cuda import argsort
@@ -362,6 +363,9 @@ class AlignMultiple(Template):
 
 
 def align(ary_list, order, out_list=None, backend=None):
+    if not ary_list:
+        return []
+
     import compyle.parallel as parallel
     if backend is None:
         backend = order.backend
