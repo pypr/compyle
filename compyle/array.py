@@ -2,18 +2,25 @@ import numpy as np
 from pytools import memoize_method
 
 from .config import get_config
-from .types import annotate, dtype_to_knowntype
+from .types import annotate, dtype_to_knowntype, knowntype_to_ctype
+from .template import Template
+
 
 try:
     import pycuda
-    if pycuda.VERSION >= (2014, 1):
+    # if pycuda.VERSION >= (2014, 1):
+    if False:
         def cu_bufint(arr, nbytes, offset):
             return arr.gpudata.as_buffer(nbytes, offset)
     else:
         import cffi
         ffi = cffi.FFI()
+
         def cu_bufint(arr, nbytes, offset):
-            return ffi.buffer(ffi.cast('void *', arr.ptr), arr.nbytes)
+            return ffi.buffer(
+                ffi.cast('void *', arr.ptr + arr.itemsize * offset),
+                nbytes
+            )
 except ImportError as e:
     pass
 
@@ -167,7 +174,7 @@ def zeros_like(array, backend=None):
     return wrap_array(out, backend)
 
 
-def arange(start, stop, step, dtype=None, backend='cython'):
+def arange(start, stop, step, dtype=np.int32, backend='cython'):
     if backend == 'opencl':
         import pyopencl.array as gpuarray
         from .opencl import get_queue
@@ -220,6 +227,80 @@ def sum(ary, backend=None):
         return gpuarray.sum(ary.dev).get()
 
 
+def dot(a, b, backend=None):
+    if backend is None:
+        backend = a.backend
+    if backend == 'cython':
+        return np.dot(a.dev, b.dev)
+    if backend == 'opencl':
+        import pyopencl.array as gpuarray
+        return gpuarray.dot(a.dev, b.dev).get()
+    if backend == 'cuda':
+        import pycuda.gpuarray as gpuarray
+        return gpuarray.dot(a.dev, b.dev).get()
+
+
+def sort_by_keys(ary_list, out_list=None, key_bits=None,
+                 backend=None):
+    # first arg of ary_list is the key
+    if backend is None:
+        backend = ary_list[0].backend
+    if backend == 'opencl':
+        import pyopencl as cl
+        import pyopencl.algorithm
+        from pyopencl.scan import GenericScanKernel
+        from compyle.opencl import get_context, get_queue
+        from .jit import get_ctype_from_arg
+
+        arg_types = [get_ctype_from_arg(arg) for arg in ary_list]
+
+        arg_names = ["ary_%s" % i for i in range(len(ary_list))]
+
+        sort_args = ["%s %s" % (knowntype_to_ctype(ktype), name)
+                     for ktype, name in zip(arg_types, arg_names)]
+
+        sort_args = [arg.replace('GLOBAL_MEM', '__global')
+                     for arg in sort_args]
+
+        sort_knl = cl.algorithm.RadixSort(
+            get_context(),
+            sort_args,
+            scan_kernel=GenericScanKernel, key_expr="ary_0[i]",
+            sort_arg_names=arg_names
+        )
+
+        allocator = cl.tools.MemoryPool(
+            cl.tools.ImmediateAllocator(get_queue())
+        )
+
+        arg_list = [ary.dev for ary in ary_list]
+
+        out_list, event = sort_knl(*arg_list, key_bits=key_bits,
+                                   allocator=allocator)
+        return out_list
+    else:
+        order = argsort(ary_list[0], backend=backend)
+        out_list = align(ary_list[1:], order, out_list=out_list,
+                         backend=backend)
+        return [ary_list[0]] + out_list
+
+
+def argsort(ary, backend=None):
+    # FIXME: Implement an OpenCL backend and add tests
+    # NOTE: argsort also sorts the array
+    if backend is None:
+        backend = ary.backend
+    if backend == 'cython':
+        result = np.argsort(ary.dev)
+        ary.dev = np.take(ary.dev, result)
+        return wrap_array(result, backend=backend)
+    elif backend == 'cuda':
+        from compyle.cuda import argsort
+        return argsort(ary)
+    else:
+        raise ValueError("Only cython and cuda backends supported")
+
+
 @annotate
 def take_elwise(i, indices, ary, out_ary):
     out_ary[i] = ary[indices[i]]
@@ -234,10 +315,76 @@ def take(ary, indices, backend=None, out=None):
     if backend == 'opencl' or backend == 'cuda':
         take_knl = parallel.Elementwise(take_elwise, backend=backend)
         take_knl(indices, ary, out)
-        return out
     elif backend == 'cython':
         np.take(ary.dev, indices.dev, out=out.dev)
     return out
+
+
+@annotate
+def inp_cumsum(i, ary):
+    return ary[i]
+
+
+@annotate
+def out_cumsum(i, ary, out, item):
+    out[i] = item
+
+
+def cumsum(ary, backend=None, out=None):
+    if backend is None:
+        backend = ary.backend
+    if backend == 'opencl' or backend == 'cuda':
+        if out is None:
+            out = empty(ary.length, ary.dtype, backend=backend)
+        cumsum_scan = Scan(inp_cumsum, out_cumsum, 'a+b',
+                           dtype=ary.dtype, backend=backend)
+        cumsum_scan(ary=ary, out=out)
+        return out
+    elif backend == 'cython':
+        output = np.cumsum(ary, out=out)
+        return wrap_array(output, backend)
+
+
+class AlignMultiple(Template):
+    def __init__(self, name, num_arys):
+        super(AlignMultiple, self).__init__(name=name)
+        self.num_arys = num_arys
+
+    def extra_args(self):
+        args = ['inp_%s' % num for num in range(self.num_arys)]
+        args += ['out_%s' % num for num in range(self.num_arys)]
+        return args, {}
+
+    def template(self, i, order):
+        '''
+        % for num in range(obj.num_arys):
+        out_${num}[i] = inp_${num}[order[i]]
+        % endfor
+        '''
+
+
+def align(ary_list, order, out_list=None, backend=None):
+    if not ary_list:
+        return []
+
+    import compyle.parallel as parallel
+    if backend is None:
+        backend = order.backend
+    if not out_list:
+        out_list = []
+        for ary in ary_list:
+            out_list.append(empty(order.length, ary.dtype,
+                                  backend=ary.backend))
+
+    args_list = [order] + ary_list + out_list
+
+    align_multiple_knl = AlignMultiple('align_multiple_knl',
+                                       len(ary_list))
+    align_multiple_elwise = parallel.Elementwise(align_multiple_knl.function,
+                                                 backend=backend)
+    align_multiple_elwise(*args_list)
+
+    return out_list
 
 
 class Array(object):
@@ -325,11 +472,15 @@ class Array(object):
     def _get_np_data(self):
         return self.data
 
-    def get_buff(self, offset=0):
-        if self.backend == 'cython':
-            return self.dev[offset:]
-        elif self.backend == 'cuda':
+    def get_buff(self, offset=0, length=0):
+        if not length:
             nbytes = int(self.dev.nbytes - offset * self.dev.itemsize)
+        else:
+            nbytes = length * self.dev.itemsize
+        if self.backend == 'cython':
+            length = nbytes // self.dev.itemsize
+            return self.dev[offset:offset + length]
+        elif self.backend == 'cuda':
             return cu_bufint(self._data, nbytes, int(offset))
 
     def get(self):
@@ -337,6 +488,13 @@ class Array(object):
             return self.dev
         elif self.backend == 'opencl' or self.backend == 'cuda':
             return self.dev.get()
+
+    def get_view(self, offset=0, length=None):
+        if length is None:
+            length = self.length - offset
+        view_arr = Array(self.dtype, allocate=False, backend=self.backend)
+        view_arr.set_data(self.dev[offset:offset + length])
+        return view_arr
 
     def set(self, nparr):
         if self.backend == 'cython':
@@ -387,7 +545,7 @@ class Array(object):
         return self._data
 
     def copy(self):
-        arr_copy = Array(self.dtype, backend=self.backend)
+        arr_copy = Array(self.dtype, backend=self.backend, allocate=False)
         arr_copy.set_data(self.dev.copy())
         return arr_copy
 

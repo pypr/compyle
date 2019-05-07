@@ -686,7 +686,10 @@ class CConverter(ast.NodeVisitor):
         return ';'
 
     def visit_Return(self, node):
-        return 'return %s;' % (self.visit(node.value))
+        if node.value:
+            return 'return %s;' % (self.visit(node.value))
+        else:
+            return 'return;'
 
     def visit_Sub(self, node):
         return '-'

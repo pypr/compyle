@@ -1,5 +1,7 @@
 import sys
 from setuptools import setup, find_packages
+from Cython.Distutils import Extension
+from Cython.Build import cythonize
 
 
 def get_version():
@@ -39,6 +41,14 @@ Topic :: Utilities
 '''
 classifiers = [x.strip() for x in classes.splitlines() if x]
 
+ext_modules = [
+        Extension(
+            name="compyle.thrust.sort",
+            sources=["compyle/thrust/sort.pyx"],
+            language="c++"
+            ),
+        ]
+
 setup(
     name='compyle',
     version=get_version(),
@@ -50,6 +60,7 @@ setup(
     url='https://github.com/pypr/compyle',
     classifiers=classifiers,
     packages=find_packages(),
+    ext_modules=cythonize(ext_modules, language="c++"),
     install_requires=install_requires,
     extras_require={
         "docs": docs_require,

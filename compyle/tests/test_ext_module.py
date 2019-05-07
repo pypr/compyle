@@ -33,14 +33,15 @@ def _check_write_source(root):
     m.side_effect = _side_effect
 
     with mock.patch('compyle.ext_module.io.open', m, create=True):
-        ExtModule("print('hello')", root=root)
+        s = ExtModule("print('hello')", root=root)
+        s.write_source()
     return m.call_count
 
 
 def _check_compile(root):
     with mock.patch('shutil.copy') as m:
         s = ExtModule("print('hello')", root=root)
-        s.build()
+        s.write_and_build()
     if m.called:
         # If it was called, do the copy to mimic the action.
         shutil.copy(*m.call_args[0])
@@ -86,6 +87,7 @@ class TestExtModule(TestCase):
         self.assertEqual(s.ext_path,
                          join(self.root, expect_name + get_ext_extension()))
 
+        s.write_source()
         self.assertTrue(exists(s.src_path))
         self.assertEqual(data, open(s.src_path).read())
 
@@ -93,6 +95,7 @@ class TestExtModule(TestCase):
         try:
             data = self.data
             s = ExtModule(data)
+            s.write_source()
             self.assertTrue(exists(join(s.root, 'build')))
             self.assertEqual(s.hash, get_md5(data))
             self.assertEqual(s.code, data)
@@ -137,7 +140,7 @@ class TestExtModule(TestCase):
         with self._add_root_to_sys_path():
             # When
             self.assertTrue(s.should_recompile())
-            s.build()
+            s.write_and_build()
 
             # Then.
             self.assertFalse(s.should_recompile())

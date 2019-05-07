@@ -173,6 +173,30 @@ def test_align(backend):
 
 
 @test_all_backends
+def test_align_multiple(backend):
+    check_import(backend)
+
+    # Given
+    dev_array_a = Array(np.uint32, backend=backend)
+    dev_array_b = Array(np.float32, backend=backend)
+    orig_array_a = array.arange(0, 1024, 1, dtype=np.uint32, backend=backend)
+    orig_array_b = array.arange(
+        1024, 2048, 1, dtype=np.float32, backend=backend)
+    dev_array_a.set_data(orig_array_a)
+    dev_array_b.set_data(orig_array_b)
+
+    indices = array.arange(1023, -1, -1, dtype=np.int64, backend=backend)
+
+    # When
+    dev_array_a, dev_array_b = array.align([dev_array_a, dev_array_b],
+                                           indices)
+
+    # Then
+    assert np.all(dev_array_a.get() == indices.get())
+    assert np.all(dev_array_b.get() - 1024 == indices.get())
+
+
+@test_all_backends
 def test_squeeze(backend):
     check_import(backend)
 
@@ -222,3 +246,35 @@ def test_min_max(backend):
     # Then
     assert dev_array.minimum == 1
     assert dev_array.maximum == 10
+
+
+@test_all_backends
+def test_sort_by_keys(backend):
+    check_import(backend)
+
+    # Given
+    dev_array = make_dev_array(backend)
+
+    # When
+    out_array = array.sort_by_keys([dev_array])[0]
+
+    # Then
+    assert np.all(out_array.get() == np.sort(dev_array.get()))
+
+
+@test_all_backends
+def test_dot(backend):
+    check_import(backend)
+
+    # Given
+    a = make_dev_array(backend)
+    a.fill(1)
+
+    b = make_dev_array(backend)
+    b.fill(2)
+
+    # When
+    out_array = array.dot(a, b)
+
+    # Then
+    assert np.all(out_array == 32)
