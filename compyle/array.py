@@ -1,8 +1,10 @@
 import numpy as np
-from pytools import memoize_method
+import mako.template as mkt
+from pytools import memoize, memoize_method
 
 from .config import get_config
-from .types import annotate, dtype_to_knowntype, knowntype_to_ctype
+from .types import (annotate, dtype_to_ctype,
+                    dtype_to_knowntype, knowntype_to_ctype)
 from .template import Template
 
 
@@ -36,6 +38,182 @@ def get_backend(backend=None):
             return 'cython'
     else:
         return backend
+
+
+minmax_tpl = """
+
+    WITHIN_KERNEL ${dtype} mmc_neutral()
+    {
+        ${dtype} result;
+
+        % for prop in prop_names:
+        % if not only_max:
+        result.cur_min_${prop} = INFINITY;
+        % endif
+        % if not only_min:
+        result.cur_max_${prop} = -INFINITY;
+        % endif
+        % endfor
+
+        return result;
+    }
+
+    WITHIN_KERNEL ${dtype} mmc_from_scalar(${args})
+    {
+        ${dtype} result;
+
+        % for prop in prop_names:
+        % if not only_max:
+        result.cur_min_${prop} = ${prop};
+        % endif
+        % if not only_min:
+        result.cur_max_${prop} = ${prop};
+        % endif
+        % endfor
+
+        return result;
+    }
+
+    WITHIN_KERNEL ${dtype} agg_mmc(${dtype} a, ${dtype} b)
+    {
+        ${dtype} result = a;
+
+        % for prop in prop_names:
+        % if not only_max:
+        if (b.cur_min_${prop} < result.cur_min_${prop})
+            result.cur_min_${prop} = b.cur_min_${prop};
+        % endif
+        % if not only_min:
+        if (b.cur_max_${prop} > result.cur_max_${prop})
+            result.cur_max_${prop} = b.cur_max_${prop};
+        % endif
+        % endfor
+
+        return result;
+    }
+
+    """
+
+
+minmax_operator_tpl = """
+
+    __device__ ${dtype} volatile &operator=(
+        ${dtype} const &src) volatile
+    {
+        % for prop in prop_names:
+        % if not only_max:
+        this->cur_min_${prop} = src.cur_min_${prop};
+        % endif
+        % if not only_min:
+        this->cur_max_${prop} = src.cur_max_${prop};
+        % endif
+        % endfor
+        return *this;
+    }
+"""
+
+
+def minmax_collector_key(device, dtype, props, name, *args):
+    return (device, dtype, tuple(props), name)
+
+
+@memoize(key=minmax_collector_key)
+def make_collector_dtype(device, dtype, props, name, only_min, only_max, backend):
+    fields = [("pad", np.int32)]
+
+    for prop in props:
+        if not only_min:
+            fields.append(("cur_max_%s" % prop, dtype))
+        if not only_max:
+            fields.append(("cur_min_%s" % prop, dtype))
+
+    custom_dtype = np.dtype(fields)
+
+    if backend == 'opencl':
+        from pyopencl.tools import get_or_register_dtype, match_dtype_to_c_struct
+    elif backend == 'cuda':
+        from compyle.cuda import match_dtype_to_c_struct
+        from pycuda.tools import get_or_register_dtype
+
+    custom_dtype, c_decl = match_dtype_to_c_struct(device, name, custom_dtype)
+    custom_dtype = get_or_register_dtype(name, custom_dtype)
+
+    return custom_dtype, c_decl
+
+
+@memoize(key=lambda *args: (args[-3], args[-2], args[-1]))
+def get_minmax_kernel(ctx, dtype, mmc_dtype, prop_names,
+                       only_min, only_max, name, mmc_c_decl, backend):
+    tpl_args = ", ".join(
+        ["%(dtype)s %(prop)s" % {'dtype': dtype, 'prop': prop}
+            for prop in prop_names]
+    )
+
+    if backend == 'cuda':
+        # overload assignment operator in struct
+        mmc_overload = mkt.Template(text=minmax_operator_tpl).render(
+            prop_names=prop_names, dtype=name,
+            only_min=only_min, only_max=only_max
+        )
+        mmc_c_decl_lines = mmc_c_decl.splitlines()
+        mmc_c_decl_lines = mmc_c_decl_lines[:-2] + \
+                mmc_overload.splitlines() + mmc_c_decl_lines[-2:]
+        mmc_c_decl = '\n'.join(mmc_c_decl_lines)
+
+    mmc_preamble = mmc_c_decl + minmax_tpl
+    preamble = mkt.Template(text=mmc_preamble).render(
+        args=tpl_args, prop_names=prop_names, dtype=name,
+        only_min=only_min, only_max=only_max
+    )
+
+    map_args = ", ".join(
+        ["%(prop)s[i]" % {'dtype': dtype, 'prop': prop}
+            for prop in prop_names]
+    )
+
+    if backend == 'opencl':
+        knl_args = ", ".join(
+            ["__global %(dtype)s* %(prop)s" % {'dtype': dtype, 'prop': prop}
+                for prop in prop_names]
+        )
+
+        from pyopencl._cluda import CLUDA_PREAMBLE
+        from pyopencl.reduction import ReductionKernel
+
+        cluda_preamble = mkt.Template(text=CLUDA_PREAMBLE).render(
+            double_support=True
+        )
+
+        knl = ReductionKernel(
+            ctx, mmc_dtype, neutral="mmc_neutral()",
+            reduce_expr="agg_mmc(a, b)",
+            map_expr="mmc_from_scalar(%s)" % map_args,
+            arguments=knl_args,
+            preamble='\n'.join([cluda_preamble, preamble])
+        )
+
+    elif backend == 'cuda':
+        knl_args = ", ".join(
+            ["%(dtype)s* %(prop)s" % {'dtype': dtype, 'prop': prop}
+                for prop in prop_names]
+        )
+
+        from pycuda._cluda import CLUDA_PREAMBLE
+        from pycuda.reduction import ReductionKernel
+
+        cluda_preamble = mkt.Template(text=CLUDA_PREAMBLE).render(
+            double_support=True
+        )
+
+        knl = ReductionKernel(
+            mmc_dtype, neutral="mmc_neutral()",
+            reduce_expr="agg_mmc(a, b)",
+            map_expr="mmc_from_scalar(%s)" % map_args,
+            arguments=knl_args,
+            preamble='\n'.join([cluda_preamble, preamble])
+        )
+
+    return knl
 
 
 def wrap_array(arr, backend):
@@ -301,6 +479,51 @@ def argsort(ary, backend=None):
         raise ValueError("Only cython and cuda backends supported")
 
 
+def update_minmax_gpu(ary_list, only_min=False, only_max=False,
+                      backend=None):
+    if not backend:
+        backend = ary_list[0].backend
+
+    if only_min and only_max:
+        raise ValueError("Only one of only_min and only_max can be True")
+
+    props = ['ary_%s' % i for i in range(len(ary_list))]
+
+    dtype = ary_list[0].dtype
+    ctype = dtype_to_ctype(dtype)
+
+    op = 'min' if not only_max else ''
+    op += 'max' if not only_min else ''
+    name = "%s_collector_%s" % (op, ''.join([ctype] + props))
+
+    if backend == 'opencl':
+        from compyle.opencl import get_context
+        ctx = get_context()
+        device = ctx.devices[0]
+    elif backend == 'cuda':
+        ctx = None
+        device = None
+
+    mmc_dtype, mmc_c_decl = make_collector_dtype(device,
+                                                 dtype, props, name,
+                                                 only_min, only_max,
+                                                 backend)
+
+    knl = get_minmax_kernel(ctx, ctype, mmc_dtype, props,
+                            only_min, only_max, name, mmc_c_decl,
+                            backend)
+
+    args = [ary.dev for ary in ary_list]
+
+    result = knl(*args).get()
+
+    for ary, prop in zip(ary_list, props):
+        if not only_max:
+            ary.minimum = result["cur_min_%s" % prop]
+        if not only_min:
+            ary.maximum = result["cur_max_%s" % prop]
+
+
 @annotate
 def take_elwise(i, indices, ary, out_ary):
     out_ary[i] = ary[indices[i]]
@@ -549,11 +772,15 @@ class Array(object):
         arr_copy.set_data(self.dev.copy())
         return arr_copy
 
-    def update_min_max(self):
-        self.minimum = minimum(self, backend=self.backend)
-        self.maximum = maximum(self, backend=self.backend)
-        self.minimum = self.minimum.astype(self.dtype)
-        self.maximum = self.maximum.astype(self.dtype)
+    def update_min_max(self, only_min=False, only_max=False):
+        if self.backend == 'cython':
+            self.minimum = minimum(self, backend=self.backend)
+            self.maximum = maximum(self, backend=self.backend)
+            self.minimum = self.minimum.astype(self.dtype)
+            self.maximum = self.maximum.astype(self.dtype)
+        else:
+            update_minmax_gpu([self])
+
 
     def fill(self, value):
         self.dev.fill(value)

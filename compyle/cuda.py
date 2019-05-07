@@ -130,9 +130,9 @@ def match_dtype_to_c_struct(device, name, dtype, context=None):
         field_dtype, offset = dtype_and_offset[:2]
         c_fields.append("  %s %s;" % (dtype_to_ctype(field_dtype), field_name))
 
-    c_decl = "typedef struct {\n%s\n} %s;\n\n" % (
-        "\n".join(c_fields),
-        name)
+    c_decl = "struct %s {\n%s\n};\n\n" % (
+        name, "\n".join(c_fields)
+        )
 
     cdl = _CDeclList(device)
     for field_name, dtype_and_offset in fields:
