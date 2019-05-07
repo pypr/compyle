@@ -1,4 +1,5 @@
 import ast
+import sys
 import numpy as np
 
 
@@ -178,6 +179,18 @@ C_NP_TYPE_MAP = {
     'unsigned short': np.uint16
 }
 
+if sys.platform.startswith('win'):
+    NP_C_TYPE_MAP[np.dtype(np.int64)] = 'long long'
+    NP_C_TYPE_MAP[np.dtype(np.uint64)] = 'unsigned long long'
+    C_NP_TYPE_MAP['long long'] = np.int64
+    C_NP_TYPE_MAP['unsigned long long'] = np.uint64
+    TYPES['glonglongp'] = KnownType('GLOBAL_MEM long long*', 'long long')
+    TYPES['gulonglongp'] = KnownType('GLOBAL_MEM unsigned long long*',
+                                     'unsigned long long')
+    TYPES['llonglongp'] = KnownType('LOCAL_MEM long long*', 'long long')
+    TYPES['lulonglongp'] = KnownType('LOCAL_MEM unsigned long long*',
+                                     'unsigned long long')
+
 
 NP_TYPE_LIST = list(C_NP_TYPE_MAP.values())
 
@@ -215,7 +228,7 @@ def dtype_to_knowntype(dtype, address='scalar'):
     ctype = dtype_to_ctype(dtype)
     if 'unsigned' in ctype:
         ctype = 'u%s' % ctype.replace('unsigned ', '')
-    knowntype = ctype
+    knowntype = ctype.replace(' ', '')
     if address == 'ptr':
         knowntype = '%sp' % knowntype
     elif address == 'global':
