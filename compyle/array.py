@@ -2,20 +2,25 @@ import numpy as np
 from pytools import memoize_method
 
 from .config import get_config
-from .types import annotate, dtype_to_knowntype
+from .types import annotate, dtype_to_knowntype, knowntype_to_ctype
 from .template import Template
+from .jit import get_ctype_from_arg
 
 
 try:
     import pycuda
-    if pycuda.VERSION >= (2014, 1):
+    #if pycuda.VERSION >= (2014, 1):
+    if False:
         def cu_bufint(arr, nbytes, offset):
             return arr.gpudata.as_buffer(nbytes, offset)
     else:
         import cffi
         ffi = cffi.FFI()
         def cu_bufint(arr, nbytes, offset):
-            return ffi.buffer(ffi.cast('void *', arr.ptr), arr.nbytes)
+            return ffi.buffer(
+                    ffi.cast('void *', arr.ptr + arr.itemsize * offset),
+                    nbytes
+                    )
 except ImportError as e:
     pass
 
@@ -220,6 +225,65 @@ def sum(ary, backend=None):
     if backend == 'cuda':
         import pycuda.gpuarray as gpuarray
         return gpuarray.sum(ary.dev).get()
+
+
+def dot(a, b, backend=None):
+    if backend is None:
+        backend = a.backend
+    if backend == 'cython':
+        return np.dot(a.dev, b.dev)
+    if backend == 'opencl':
+        import pyopencl.array as gpuarray
+        return gpuarray.dot(a.dev, b.dev).get()
+    if backend == 'cuda':
+        import pycuda.gpuarray as gpuarray
+        return gpuarray.dot(a.dev, b.dev).get()
+
+
+######### Sorting #################
+
+def sort_by_keys(ary_list, out_list=None, key_bits=None,
+                 backend=None):
+    # first arg of ary_list is the key
+    if backend is None:
+        backend = ary.backend
+    if backend == 'opencl':
+        import pyopencl as cl
+        import pyopencl.algorithm
+        from pyopencl.scan import GenericScanKernel
+        from compyle.opencl import get_context, get_queue
+
+        arg_types = [get_ctype_from_arg(arg) for arg in ary_list]
+
+        arg_names = ["ary_%s" % i for i in range(len(ary_list))]
+
+        sort_args = ["%s %s" % (knowntype_to_ctype(ktype), name) \
+                for ktype, name in zip(arg_types, arg_names)]
+
+        sort_args = [arg.replace('GLOBAL_MEM', '__global') \
+                for arg in sort_args]
+
+        sort_knl = cl.algorithm.RadixSort(
+            get_context(),
+            sort_args,
+            scan_kernel=GenericScanKernel, key_expr="ary_0[i]",
+            sort_arg_names=arg_names
+        )
+
+        allocator = cl.tools.MemoryPool(
+                cl.tools.ImmediateAllocator(get_queue())
+                )
+
+        arg_list = [ary.dev for ary in ary_list]
+
+        out_list, event = sort_knl(*arg_list, key_bits=key_bits,
+                                   allocator=allocator)
+        return out_list
+    else:
+        order = argsort(ary_list[0], backend=backend)
+        out_list = align(ary_list, order, out_list=out_list,
+                         backend=backend)
+        return out_list
 
 
 def argsort(ary, backend=None):

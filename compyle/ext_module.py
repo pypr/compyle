@@ -24,11 +24,6 @@ else:
 
 PY3 = sys.version_info.major > 2
 
-try:
-    from mpi4py import MPI
-except ImportError:
-    MPI = None
-
 # Package imports.
 from .config import get_config  # noqa: 402
 from .capture_stream import CaptureMultipleStreams  # noqa: 402
@@ -110,16 +105,6 @@ class ExtModule(object):
         )
         self.extra_link_args = extra_link_args if extra_link_args else []
 
-        if MPI is not None and MPI.Is_initialized():
-            self.comm = MPI.COMM_WORLD
-            self.rank = self.comm.Get_rank()
-            self.num_procs = self.comm.Get_size()
-        else:
-            self.rank = 0
-            self.num_procs = 1
-
-        self.shared_filesystem = False
-
     def _add_local_include(self):
         if sys.platform != 'win32':
             local = '/usr/local/include'
@@ -160,24 +145,6 @@ class ExtModule(object):
             yield
         finally:
             os.rmdir(self.lock_path)
-
-    def _create_source(self):
-        # Create the source.
-        if self.rank == 0:
-            with self._lock():
-                self._write_source(self.src_path)
-        if self.num_procs > 1:
-            self.comm.barrier()
-            if not exists(self.src_path):
-                # Not a shared filesystem so append rank to filename.
-                # This is needed since there may be other nodes using the same
-                # filesystem (multi-core CPUs) whose rank is non-zero.
-                self.name = 'm_{0}_{1}'.format(self.hash, self.rank)
-                self._setup_filenames()
-                with self._lock():
-                    self._write_source(self.src_path)
-            else:
-                self.shared_filesystem = True
 
     def _write_source(self, path):
         if not exists(path):

@@ -311,10 +311,19 @@ class _address(Extern):
         pass
 
 
+class _atomic_inc(Extern):
+    def code(self, backend):
+        return ''
+
+    def __call__(self, *args, **kw):
+        pass
+
+
 prange = _prange()
 parallel = _parallel()
 nogil = _nogil()
 address = _address()
+atomic_inc = _atomic_inc()
 
 
 class Cython(object):

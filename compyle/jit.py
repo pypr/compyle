@@ -45,8 +45,7 @@ def getargspec(f):
 def get_ctype_from_arg(arg):
     if isinstance(arg, array.Array):
         return arg.gptr_type
-    elif isinstance(arg, np.ndarray) or isinstance(arg, np.floating) or \
-            isinstance(arg, np.int):
+    elif isinstance(arg, np.ndarray) or isinstance(arg, np.floating):
         return dtype_to_ctype(arg.dtype)
     else:
         if isinstance(arg, float):
@@ -195,22 +194,29 @@ class AnnotationHelper(ast.NodeVisitor):
         if len(node.targets) != 1:
             self.error("Assignments can have only one target.", node)
         left, right = node.targets[0], node.value
-        if isinstance(right, ast.Call) and \
-           isinstance(right.func, ast.Name) and right.func.id == 'declare':
-            if not isinstance(right.args[0], ast.Str):
-                self.error("Argument to declare should be a string.", node)
-            type = right.args[0].s
-            if isinstance(left, ast.Name):
-                self.var_types[left.id] = self.get_type(type)
-            elif isinstance(left, ast.Tuple):
-                names = [x.id for x in left.elts]
-                for name in names:
-                    self.var_types[name] = self.get_type(type)
-        else:
-            if isinstance(left, ast.Name) and \
-                    left.id not in self.var_types and \
+        if isinstance(right, ast.Call) and isinstance(right.func, ast.Name):
+            if right.func.id == 'declare':
+                if not isinstance(right.args[0], ast.Str):
+                    self.error("Argument to declare should be a string.", node)
+                type = right.args[0].s
+                if isinstance(left, ast.Name):
+                    self.var_types[left.id] = self.get_type(type)
+                elif isinstance(left, ast.Tuple):
+                    names = [x.id for x in left.elts]
+                    for name in names:
+                        self.var_types[name] = self.get_type(type)
+            elif isinstance(left, ast.Name):
+                if left.id not in self.var_types and \
+                        left.id not in self.undecl_var_types:
+                    self.undecl_var_types[left.id] = self.visit(right)
+                else:
+                    self.visit(right)
+        elif isinstance(left, ast.Name):
+            if left.id not in self.var_types and \
                     left.id not in self.undecl_var_types:
                 self.undecl_var_types[left.id] = self.visit(right)
+            else:
+                self.visit(right)
 
     def visit_Compare(self, node):
         return 'int'
@@ -232,23 +238,27 @@ class AnnotationHelper(ast.NodeVisitor):
                 return_type = 'int'
         return return_type
 
+    def visit_UnaryOp(self, node):
+        return self.visit(node.operand)
+
     def visit_Return(self, node):
         if isinstance(node.value, ast.Name) or \
                 isinstance(node.value, ast.Subscript) or \
                 isinstance(node.value, ast.Num) or \
                 isinstance(node.value, ast.BinOp) or \
                 isinstance(node.value, ast.Call) or \
-                isinstance(node.value, ast.IfExp):
+                isinstance(node.value, ast.IfExp) or \
+                isinstance(node.value, ast.UnaryOp):
             result_type = self.visit(node.value)
             if result_type:
                 self.arg_types['return_'] = self.visit(node.value)
-            else:
-                self.warn(dedent(self.warning_msg), node.value)
-                self.arg_types['return_'] = 'double'
         else:
-            self.warn("Unknown type for return value. "
-                      "Return value defaulting to 'double'", node)
-            self.arg_types['return_'] = 'double'
+            if not node.value:
+                self.warn("Not returning anything", node)
+            else:
+                self.warn("Unknown type for return value. "
+                          "Return value defaulting to 'double'", node)
+                self.arg_types['return_'] = 'double'
 
 
 class ElementwiseJIT(parallel.ElementwiseBase):

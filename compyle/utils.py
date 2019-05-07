@@ -1,7 +1,4 @@
 import inspect
-from os.path import join, expanduser
-import os
-import shutil
 
 
 def getsourcelines(obj):

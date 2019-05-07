@@ -179,6 +179,9 @@ C_NP_TYPE_MAP = {
 }
 
 
+NP_TYPE_LIST = list(C_NP_TYPE_MAP.values())
+
+
 def dtype_to_ctype(dtype):
     try:
         # FIXME: pyopencl depency
@@ -198,6 +201,14 @@ def dtype_to_ctype(dtype):
 
 def ctype_to_dtype(ctype):
     return np.dtype(C_NP_TYPE_MAP[ctype])
+
+
+def knowntype_to_ctype(knowntype):
+    knowntype_obj = TYPES.get(knowntype, None)
+    if knowntype_obj:
+        return knowntype_obj.type
+    else:
+        raise ValueError("Not a vaild known type")
 
 
 def dtype_to_knowntype(dtype, address='scalar'):
