@@ -12,13 +12,255 @@ def set_context():
         _cuda_ctx = True
 
 
+# The following code is taken from pyopencl for struct mapping.
+# it should be ported over to pycuda eventually.
+import six
+import numpy as np
+from pytools import memoize
+from pycuda.tools import dtype_to_ctype
+from pycuda.compiler import SourceModule as _SourceModule
+import pycuda.gpuarray as gpuarray   # noqa
+import pycuda.driver as drv
+
+
+class SourceModule(_SourceModule):
+    def __getattr__(self, name):
+        return self.get_function(name)
+
+
+class _CDeclList:
+    def __init__(self, device):
+        self.device = device
+        self.declared_dtypes = set()
+        self.declarations = []
+        self.saw_complex = False
+
+    def add_dtype(self, dtype):
+        dtype = np.dtype(dtype)
+
+        if dtype.kind == "c":
+            self.saw_complex = True
+
+        if dtype.kind != "V":
+            return
+
+        if dtype in self.declared_dtypes:
+            return
+
+        for name, field_data in sorted(six.iteritems(dtype.fields)):
+            field_dtype, offset = field_data[:2]
+            self.add_dtype(field_dtype)
+
+        _, cdecl = match_dtype_to_c_struct(
+                self.device, dtype_to_ctype(dtype), dtype)
+
+        self.declarations.append(cdecl)
+        self.declared_dtypes.add(dtype)
+
+    def visit_arguments(self, arguments):
+        for arg in arguments:
+            dtype = arg.dtype
+            if dtype.kind == "c":
+                self.saw_complex = True
+
+    def get_declarations(self):
+        result = "\n\n".join(self.declarations)
+
+        if self.saw_complex:
+            result = (
+                    "#include <pycuda-complex.h>\n\n"
+                    + result)
+
+        return result
+
+
+@memoize
+def match_dtype_to_c_struct(device, name, dtype, context=None):
+    """Return a tuple `(dtype, c_decl)` such that the C struct declaration
+    in `c_decl` and the structure :class:`numpy.dtype` instance `dtype`
+    have the same memory layout.
+
+    Note that *dtype* may be modified from the value that was passed in,
+    for example to insert padding.
+
+    (As a remark on implementation, this routine runs a small kernel on
+    the given *device* to ensure that :mod:`numpy` and C offsets and
+    sizes match.)
+
+    This example explains the use of this function::
+
+        >>> import numpy as np
+        >>> import pyopencl as cl
+        >>> import pyopencl.tools
+        >>> ctx = cl.create_some_context()
+        >>> dtype = np.dtype([("id", np.uint32), ("value", np.float32)])
+        >>> dtype, c_decl = pyopencl.tools.match_dtype_to_c_struct(
+        ...     ctx.devices[0], 'id_val', dtype)
+        >>> print c_decl
+        typedef struct {
+          unsigned id;
+          float value;
+        } id_val;
+        >>> print dtype
+        [('id', '<u4'), ('value', '<f4')]
+        >>> cl.tools.get_or_register_dtype('id_val', dtype)
+
+    As this example shows, it is important to call
+    :func:`get_or_register_dtype` on the modified `dtype` returned by this
+    function, not the original one.
+    """
+
+    fields = sorted(
+        six.iteritems(dtype.fields),
+        key=lambda name_dtype_offset: name_dtype_offset[1][1]
+    )
+
+    c_fields = []
+    for field_name, dtype_and_offset in fields:
+        field_dtype, offset = dtype_and_offset[:2]
+        c_fields.append("  %s %s;" % (dtype_to_ctype(field_dtype), field_name))
+
+    c_decl = "typedef struct {\n%s\n} %s;\n\n" % (
+            "\n".join(c_fields),
+            name)
+
+    cdl = _CDeclList(device)
+    for field_name, dtype_and_offset in fields:
+        field_dtype, offset = dtype_and_offset[:2]
+        cdl.add_dtype(field_dtype)
+
+    pre_decls = cdl.get_declarations()
+
+    offset_code = "\n".join(
+            "result[%d] = pycuda_offsetof(%s, %s);" % (i+1, name, field_name)
+            for i, (field_name, _) in enumerate(fields))
+
+    src = r"""
+        #define pycuda_offsetof(st, m) \
+                 ((uint) ((char *) &(dummy_pycuda.m) \
+                 - (char *)&dummy_pycuda ))
+
+        %(pre_decls)s
+
+        %(my_decl)s
+
+        extern "C" __global__ void get_size_and_offsets(uint *result)
+        {
+            result[0] = sizeof(%(my_type)s);
+            %(my_type)s dummy_pycuda;
+            %(offset_code)s
+        }
+    """ % dict(
+            pre_decls=pre_decls,
+            my_decl=c_decl,
+            my_type=name,
+            offset_code=offset_code)
+
+    prg = SourceModule(src)
+    knl = prg.get_size_and_offsets
+
+    result_buf = gpuarray.empty(1+len(fields), np.uint32)
+    e = drv.Event()
+    knl(result_buf.gpudata, block=(1, 1, 1))
+    e.record()
+    e.synchronize()
+    size_and_offsets = result_buf.get()
+
+    size = int(size_and_offsets[0])
+
+    from pytools import any
+    offsets = size_and_offsets[1:]
+    if any(ofs >= size for ofs in offsets):
+        # offsets not plausible
+
+        if dtype.itemsize == size:
+            # If sizes match, use numpy's idea of the offsets.
+            offsets = [dtype_and_offset[1]
+                       for field_name, dtype_and_offset in fields]
+        else:
+            raise RuntimeError(
+                    "OpenCL compiler reported offsetof() past sizeof() "
+                    "for struct layout on '%s'. "
+                    "This makes no sense, and it's usually indicates a "
+                    "compiler bug. "
+                    "Refusing to discover struct layout." % device)
+
+    del knl
+    del prg
+    del context
+
+    try:
+        dtype_arg_dict = {
+            'names': [field_name
+                      for field_name, (field_dtype, offset) in fields],
+            'formats': [field_dtype
+                        for field_name, (field_dtype, offset) in fields],
+            'offsets': [int(x) for x in offsets],
+            'itemsize': int(size_and_offsets[0]),
+            }
+        dtype = np.dtype(dtype_arg_dict)
+        if dtype.itemsize != size_and_offsets[0]:
+            # "Old" versions of numpy (1.6.x?) silently ignore "itemsize". Boo.
+            dtype_arg_dict["names"].append("_pycl_size_fixer")
+            dtype_arg_dict["formats"].append(np.uint8)
+            dtype_arg_dict["offsets"].append(int(size_and_offsets[0])-1)
+            dtype = np.dtype(dtype_arg_dict)
+    except NotImplementedError:
+        def calc_field_type():
+            total_size = 0
+            padding_count = 0
+            for offset, (field_name, (field_dtype, _)) in zip(offsets, fields):
+                if offset > total_size:
+                    padding_count += 1
+                    yield ('__pycuda_padding%d' % padding_count,
+                           'V%d' % offset - total_size)
+                yield field_name, field_dtype
+                total_size = field_dtype.itemsize + offset
+        dtype = np.dtype(list(calc_field_type()))
+
+    assert dtype.itemsize == size_and_offsets[0]
+
+    return dtype, c_decl
+
+
+@memoize
+def dtype_to_c_struct(device, dtype):
+    if dtype.fields is None:
+        return ""
+
+    import pyopencl.cltypes
+    if dtype in pyopencl.cltypes.vec_type_to_scalar_and_count:
+        # Vector types are built-in. Don't try to redeclare those.
+        return ""
+
+    matched_dtype, c_decl = match_dtype_to_c_struct(
+            device, dtype_to_ctype(dtype), dtype)
+
+    def dtypes_match():
+        result = len(dtype.fields) == len(matched_dtype.fields)
+
+        for name, val in six.iteritems(dtype.fields):
+            result = result and matched_dtype.fields[name] == val
+
+        return result
+
+    assert dtypes_match()
+
+    return c_decl
+
+
+
+#####################################################################
+# The GenericScanKernel is added here temporarily until the following
+# PR is merged into PyCUDA
+# https://github.com/inducer/pycuda/pull/188
+#####################################################################
 import numpy as np
 
 from compyle.thrust.sort import argsort
 
 import pycuda.driver as drv
 import pycuda.gpuarray as gpuarray
-from pycuda.compiler import SourceModule
 from pycuda.tools import (dtype_to_ctype, bitlog2,
                           context_dependent_memoize, ScalarArg, VectorArg)
 
