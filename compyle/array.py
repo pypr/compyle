@@ -4,7 +4,6 @@ from pytools import memoize_method
 from .config import get_config
 from .types import annotate, dtype_to_knowntype, knowntype_to_ctype
 from .template import Template
-from .jit import get_ctype_from_arg
 
 
 try:
@@ -250,6 +249,7 @@ def sort_by_keys(ary_list, out_list=None, key_bits=None,
         import pyopencl.algorithm
         from pyopencl.scan import GenericScanKernel
         from compyle.opencl import get_context, get_queue
+        from .jit import get_ctype_from_arg
 
         arg_types = [get_ctype_from_arg(arg) for arg in ary_list]
 

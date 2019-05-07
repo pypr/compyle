@@ -1,4 +1,7 @@
-import unittest
+import pytest
+
+pytest.importorskip('pycuda')
+
 import numpy as np
 from compyle.thrust.sort import argsort
 from compyle.array import wrap
