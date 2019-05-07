@@ -259,3 +259,21 @@ def test_sort_by_keys(backend):
 
     # Then
     assert np.all(out_array.get() == np.sort(dev_array.get()))
+
+
+@test_all_backends
+def test_dot(backend):
+    check_import(backend)
+
+    # Given
+    a = make_dev_array(backend)
+    a.fill(1)
+
+    b = make_dev_array(backend)
+    b.fill(2)
+
+    # When
+    out_array = array.dot(a, b)
+
+    # Then
+    assert np.all(out_array == 32)
