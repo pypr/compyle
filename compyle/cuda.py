@@ -2,6 +2,22 @@
 """
 from __future__ import print_function
 
+from pytools import Record, RecordWithoutPickling
+import logging
+from pytools.persistent_dict import KeyBuilder as KeyBuilderBase
+from pytools.persistent_dict import WriteOncePersistentDict
+from pycuda._cluda import CLUDA_PREAMBLE
+import pycuda._mymako as mako
+from pycuda.tools import (dtype_to_ctype, bitlog2,
+                          context_dependent_memoize, ScalarArg, VectorArg)
+import pycuda.gpuarray as gpuarray
+from compyle.thrust.sort import argsort
+import pycuda.driver as drv
+from pycuda.compiler import SourceModule as _SourceModule
+from pycuda.tools import dtype_to_ctype
+from pytools import memoize
+import numpy as np
+import six
 _cuda_ctx = False
 
 
@@ -14,13 +30,7 @@ def set_context():
 
 # The following code is taken from pyopencl for struct mapping.
 # it should be ported over to pycuda eventually.
-import six
-import numpy as np
-from pytools import memoize
-from pycuda.tools import dtype_to_ctype
-from pycuda.compiler import SourceModule as _SourceModule
 import pycuda.gpuarray as gpuarray   # noqa
-import pycuda.driver as drv
 
 
 class SourceModule(_SourceModule):
@@ -52,7 +62,7 @@ class _CDeclList:
             self.add_dtype(field_dtype)
 
         _, cdecl = match_dtype_to_c_struct(
-                self.device, dtype_to_ctype(dtype), dtype)
+            self.device, dtype_to_ctype(dtype), dtype)
 
         self.declarations.append(cdecl)
         self.declared_dtypes.add(dtype)
@@ -68,8 +78,8 @@ class _CDeclList:
 
         if self.saw_complex:
             result = (
-                    "#include <pycuda-complex.h>\n\n"
-                    + result)
+                "#include <pycuda-complex.h>\n\n"
+                + result)
 
         return result
 
@@ -121,8 +131,8 @@ def match_dtype_to_c_struct(device, name, dtype, context=None):
         c_fields.append("  %s %s;" % (dtype_to_ctype(field_dtype), field_name))
 
     c_decl = "typedef struct {\n%s\n} %s;\n\n" % (
-            "\n".join(c_fields),
-            name)
+        "\n".join(c_fields),
+        name)
 
     cdl = _CDeclList(device)
     for field_name, dtype_and_offset in fields:
@@ -132,8 +142,8 @@ def match_dtype_to_c_struct(device, name, dtype, context=None):
     pre_decls = cdl.get_declarations()
 
     offset_code = "\n".join(
-            "result[%d] = pycuda_offsetof(%s, %s);" % (i+1, name, field_name)
-            for i, (field_name, _) in enumerate(fields))
+        "result[%d] = pycuda_offsetof(%s, %s);" % (i + 1, name, field_name)
+        for i, (field_name, _) in enumerate(fields))
 
     src = r"""
         #define pycuda_offsetof(st, m) \
@@ -151,15 +161,15 @@ def match_dtype_to_c_struct(device, name, dtype, context=None):
             %(offset_code)s
         }
     """ % dict(
-            pre_decls=pre_decls,
-            my_decl=c_decl,
-            my_type=name,
-            offset_code=offset_code)
+        pre_decls=pre_decls,
+        my_decl=c_decl,
+        my_type=name,
+        offset_code=offset_code)
 
     prg = SourceModule(src)
     knl = prg.get_size_and_offsets
 
-    result_buf = gpuarray.empty(1+len(fields), np.uint32)
+    result_buf = gpuarray.empty(1 + len(fields), np.uint32)
     e = drv.Event()
     knl(result_buf.gpudata, block=(1, 1, 1))
     e.record()
@@ -179,11 +189,11 @@ def match_dtype_to_c_struct(device, name, dtype, context=None):
                        for field_name, dtype_and_offset in fields]
         else:
             raise RuntimeError(
-                    "OpenCL compiler reported offsetof() past sizeof() "
-                    "for struct layout on '%s'. "
-                    "This makes no sense, and it's usually indicates a "
-                    "compiler bug. "
-                    "Refusing to discover struct layout." % device)
+                "OpenCL compiler reported offsetof() past sizeof() "
+                "for struct layout on '%s'. "
+                "This makes no sense, and it's usually indicates a "
+                "compiler bug. "
+                "Refusing to discover struct layout." % device)
 
     del knl
     del prg
@@ -197,13 +207,13 @@ def match_dtype_to_c_struct(device, name, dtype, context=None):
                         for field_name, (field_dtype, offset) in fields],
             'offsets': [int(x) for x in offsets],
             'itemsize': int(size_and_offsets[0]),
-            }
+        }
         dtype = np.dtype(dtype_arg_dict)
         if dtype.itemsize != size_and_offsets[0]:
             # "Old" versions of numpy (1.6.x?) silently ignore "itemsize". Boo.
             dtype_arg_dict["names"].append("_pycl_size_fixer")
             dtype_arg_dict["formats"].append(np.uint8)
-            dtype_arg_dict["offsets"].append(int(size_and_offsets[0])-1)
+            dtype_arg_dict["offsets"].append(int(size_and_offsets[0]) - 1)
             dtype = np.dtype(dtype_arg_dict)
     except NotImplementedError:
         def calc_field_type():
@@ -234,7 +244,7 @@ def dtype_to_c_struct(device, dtype):
         return ""
 
     matched_dtype, c_decl = match_dtype_to_c_struct(
-            device, dtype_to_ctype(dtype), dtype)
+        device, dtype_to_ctype(dtype), dtype)
 
     def dtypes_match():
         result = len(dtype.fields) == len(matched_dtype.fields)
@@ -249,28 +259,13 @@ def dtype_to_c_struct(device, dtype):
     return c_decl
 
 
-
 #####################################################################
 # The GenericScanKernel is added here temporarily until the following
 # PR is merged into PyCUDA
 # https://github.com/inducer/pycuda/pull/188
 #####################################################################
-import numpy as np
 
-from compyle.thrust.sort import argsort
 
-import pycuda.driver as drv
-import pycuda.gpuarray as gpuarray
-from pycuda.tools import (dtype_to_ctype, bitlog2,
-                          context_dependent_memoize, ScalarArg, VectorArg)
-
-import pycuda._mymako as mako
-from pycuda._cluda import CLUDA_PREAMBLE
-
-from pytools.persistent_dict import WriteOncePersistentDict
-from pytools.persistent_dict import KeyBuilder as KeyBuilderBase
-
-import logging
 logger = logging.getLogger(__name__)
 
 
@@ -1122,9 +1117,6 @@ def _make_template(s):
         warn("leftover words in identifier prefixing: " + " ".join(leftovers))
 
     return mako.template.Template(s, strict_undefined=True)
-
-
-from pytools import Record, RecordWithoutPickling
 
 
 class _GeneratedScanKernelInfo(Record):

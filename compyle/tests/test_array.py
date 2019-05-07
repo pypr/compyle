@@ -180,7 +180,8 @@ def test_align_multiple(backend):
     dev_array_a = Array(np.uint32, backend=backend)
     dev_array_b = Array(np.float32, backend=backend)
     orig_array_a = array.arange(0, 1024, 1, dtype=np.uint32, backend=backend)
-    orig_array_b = array.arange(1024, 2048, 1, dtype=np.float32, backend=backend)
+    orig_array_b = array.arange(
+        1024, 2048, 1, dtype=np.float32, backend=backend)
     dev_array_a.set_data(orig_array_a)
     dev_array_b.set_data(orig_array_b)
 

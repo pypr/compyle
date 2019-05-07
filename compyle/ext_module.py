@@ -241,15 +241,25 @@ class ExtModule(object):
         else:
             self._message("Precompiled code from:", self.src_path)
 
-    def load(self):
-        """Build and load the built extension module.
+    def write_source(self):
+        """Writes source without compiling. Used for testing"""
+        if not exists(self.src_path):
+            with self._lock():
+                self._write_source(self.src_path)
 
-        Returns
-        """
+    def write_and_build(self):
+        """Write source and build the extension module"""
         if not exists(self.src_path):
             with self._lock():
                 self._write_source(self.src_path)
                 self.build()
+
+    def load(self):
+        """Load the built extension module.
+
+        Returns
+        """
+        self.write_and_build()
         file, path, desc = imp.find_module(self.name, [dirname(self.ext_path)])
         return imp.load_module(self.name, file, path, desc)
 

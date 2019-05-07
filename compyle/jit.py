@@ -251,7 +251,9 @@ class AnnotationHelper(ast.NodeVisitor):
                 isinstance(node.value, ast.UnaryOp):
             result_type = self.visit(node.value)
             if result_type:
-                self.arg_types['return_'] = self.visit(node.value)
+                self.arg_types['return_'] = result_type
+            else:
+                self.arg_types['return_'] = 'double'
         else:
             if not node.value:
                 self.warn("Not returning anything", node)

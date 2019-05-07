@@ -2,9 +2,10 @@ import pytest
 
 pytest.importorskip('pycuda')
 
-import numpy as np
-from compyle.thrust.sort import argsort
 from compyle.array import wrap
+from compyle.thrust.sort import argsort
+import numpy as np
+
 
 def test_sort():
     length = 100
@@ -13,4 +14,3 @@ def test_sort():
     res_gpu = argsort(b).get()
     res_cpu = np.argsort(a)
     assert np.all(res_gpu == res_cpu)
-

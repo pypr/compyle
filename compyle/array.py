@@ -8,18 +8,19 @@ from .template import Template
 
 try:
     import pycuda
-    #if pycuda.VERSION >= (2014, 1):
+    # if pycuda.VERSION >= (2014, 1):
     if False:
         def cu_bufint(arr, nbytes, offset):
             return arr.gpudata.as_buffer(nbytes, offset)
     else:
         import cffi
         ffi = cffi.FFI()
+
         def cu_bufint(arr, nbytes, offset):
             return ffi.buffer(
-                    ffi.cast('void *', arr.ptr + arr.itemsize * offset),
-                    nbytes
-                    )
+                ffi.cast('void *', arr.ptr + arr.itemsize * offset),
+                nbytes
+            )
 except ImportError as e:
     pass
 
@@ -255,11 +256,11 @@ def sort_by_keys(ary_list, out_list=None, key_bits=None,
 
         arg_names = ["ary_%s" % i for i in range(len(ary_list))]
 
-        sort_args = ["%s %s" % (knowntype_to_ctype(ktype), name) \
-                for ktype, name in zip(arg_types, arg_names)]
+        sort_args = ["%s %s" % (knowntype_to_ctype(ktype), name)
+                     for ktype, name in zip(arg_types, arg_names)]
 
-        sort_args = [arg.replace('GLOBAL_MEM', '__global') \
-                for arg in sort_args]
+        sort_args = [arg.replace('GLOBAL_MEM', '__global')
+                     for arg in sort_args]
 
         sort_knl = cl.algorithm.RadixSort(
             get_context(),
@@ -269,8 +270,8 @@ def sort_by_keys(ary_list, out_list=None, key_bits=None,
         )
 
         allocator = cl.tools.MemoryPool(
-                cl.tools.ImmediateAllocator(get_queue())
-                )
+            cl.tools.ImmediateAllocator(get_queue())
+        )
 
         arg_list = [ary.dev for ary in ary_list]
 
@@ -373,14 +374,14 @@ def align(ary_list, order, out_list=None, backend=None):
         out_list = []
         for ary in ary_list:
             out_list.append(empty(order.length, ary.dtype,
-                            backend=ary.backend))
+                                  backend=ary.backend))
 
     args_list = [order] + ary_list + out_list
 
     align_multiple_knl = AlignMultiple('align_multiple_knl',
                                        len(ary_list))
     align_multiple_elwise = parallel.Elementwise(align_multiple_knl.function,
-                                        backend=backend)
+                                                 backend=backend)
     align_multiple_elwise(*args_list)
 
     return out_list
