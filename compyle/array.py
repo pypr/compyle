@@ -48,10 +48,10 @@ minmax_tpl = """
 
         % for prop in prop_names:
         % if not only_max:
-        result.cur_min_${prop} = INFINITY;
+        result.cur_min_${prop} = ${inf};
         % endif
         % if not only_min:
-        result.cur_max_${prop} = -INFINITY;
+        result.cur_max_${prop} = -${inf};
         % endif
         % endfor
 
@@ -142,7 +142,7 @@ def make_collector_dtype(device, dtype, props, name, only_min, only_max, backend
 
 
 @memoize(key=lambda *args: (args[-3], args[-2], args[-1]))
-def get_minmax_kernel(ctx, dtype, mmc_dtype, prop_names,
+def get_minmax_kernel(ctx, dtype, inf, mmc_dtype, prop_names,
                        only_min, only_max, name, mmc_c_decl, backend):
     tpl_args = ", ".join(
         ["%(dtype)s %(prop)s" % {'dtype': dtype, 'prop': prop}
@@ -163,7 +163,7 @@ def get_minmax_kernel(ctx, dtype, mmc_dtype, prop_names,
     mmc_preamble = mmc_c_decl + minmax_tpl
     preamble = mkt.Template(text=mmc_preamble).render(
         args=tpl_args, prop_names=prop_names, dtype=name,
-        only_min=only_min, only_max=only_max
+        only_min=only_min, only_max=only_max, inf=inf
     )
 
     map_args = ", ".join(
@@ -509,7 +509,12 @@ def update_minmax_gpu(ary_list, only_min=False, only_max=False,
                                                  only_min, only_max,
                                                  backend)
 
-    knl = get_minmax_kernel(ctx, ctype, mmc_dtype, props,
+    if np.issubdtype(dtype, np.floating):
+        inf = np.finfo(dtype).max
+    else:
+        inf = np.iinfo(dtype).max
+
+    knl = get_minmax_kernel(ctx, ctype, inf, mmc_dtype, props,
                             only_min, only_max, name, mmc_c_decl,
                             backend)
 
