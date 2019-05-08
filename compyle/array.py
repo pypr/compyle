@@ -591,11 +591,27 @@ class AlignMultiple(Template):
         '''
 
 
+def key_align_kernel(ary_list, order, backend=None):
+    from .jit import get_ctype_from_arg
+    key = [get_ctype_from_arg(ary) for ary in ary_list]
+    key.append(backend)
+    return tuple(key)
+
+
+@memoize(key=key_align_kernel)
+def get_align_kernel(ary_list, order, backend=None):
+    import compyle.parallel as parallel
+    align_multiple_knl = AlignMultiple('align_multiple_knl',
+                                       len(ary_list))
+    align_multiple_elwise = parallel.Elementwise(align_multiple_knl.function,
+                                                 backend=backend)
+    return align_multiple_elwise
+
+
 def align(ary_list, order, out_list=None, backend=None):
     if not ary_list:
         return []
 
-    import compyle.parallel as parallel
     if backend is None:
         backend = order.backend
     if not out_list:
@@ -606,10 +622,8 @@ def align(ary_list, order, out_list=None, backend=None):
 
     args_list = [order] + ary_list + out_list
 
-    align_multiple_knl = AlignMultiple('align_multiple_knl',
-                                       len(ary_list))
-    align_multiple_elwise = parallel.Elementwise(align_multiple_knl.function,
-                                                 backend=backend)
+    align_multiple_elwise = get_align_kernel(ary_list, order, backend=backend)
+
     align_multiple_elwise(*args_list)
 
     return out_list
