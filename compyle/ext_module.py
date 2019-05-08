@@ -249,7 +249,7 @@ class ExtModule(object):
 
     def write_and_build(self):
         """Write source and build the extension module"""
-        if not exists(self.src_path):
+        if not exists(self.ext_path):
             with self._lock():
                 self._write_source(self.src_path)
                 self.build()
