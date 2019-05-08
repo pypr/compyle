@@ -428,6 +428,7 @@ class ElementwiseBase(object):
             )
             knl = ElementwiseKernel(
                 ctx,
+                name='elwise_%s' % self.name,
                 arguments=arguments,
                 operation=expr,
                 preamble="\n".join([cluda_preamble, preamble])
@@ -452,6 +453,7 @@ class ElementwiseBase(object):
                 double_support=True
             )
             knl = ElementwiseKernel(
+                name='elwise_%s' % self.name,
                 arguments=arguments,
                 operation=expr,
                 preamble="\n".join([cluda_preamble, preamble])
