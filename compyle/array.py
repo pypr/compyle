@@ -418,38 +418,54 @@ def dot(a, b, backend=None):
         return gpuarray.dot(a.dev, b.dev).get()
 
 
+@memoize(key=lambda *args: tuple(args[0]))
+def get_cl_sort_kernel(arg_types, ary_list):
+    import pyopencl as cl
+    from pyopencl.scan import GenericScanKernel
+    import pyopencl.algorithm
+    from compyle.opencl import get_context, get_queue
+    arg_names = ["ary_%s" % i for i in range(len(ary_list))]
+
+    sort_args = ["%s %s" % (knowntype_to_ctype(ktype), name)
+                 for ktype, name in zip(arg_types, arg_names)]
+
+    sort_args = [arg.replace('GLOBAL_MEM', '__global')
+                 for arg in sort_args]
+
+    sort_knl = cl.algorithm.RadixSort(
+        get_context(),
+        sort_args,
+        scan_kernel=GenericScanKernel, key_expr="ary_0[i]",
+        sort_arg_names=arg_names
+    )
+
+    return sort_knl
+
+
+@memoize(key=lambda q: q)
+def get_allocator(queue):
+    import pyopencl as cl
+
+    allocator = cl.tools.MemoryPool(
+        cl.tools.ImmediateAllocator(queue)
+    )
+
+    return allocator
+
+
 def sort_by_keys(ary_list, out_list=None, key_bits=None,
                  backend=None):
     # first arg of ary_list is the key
     if backend is None:
         backend = ary_list[0].backend
     if backend == 'opencl':
-        import pyopencl as cl
-        import pyopencl.algorithm
-        from pyopencl.scan import GenericScanKernel
-        from compyle.opencl import get_context, get_queue
         from .jit import get_ctype_from_arg
+        from compyle.opencl import get_queue
 
         arg_types = [get_ctype_from_arg(arg) for arg in ary_list]
 
-        arg_names = ["ary_%s" % i for i in range(len(ary_list))]
-
-        sort_args = ["%s %s" % (knowntype_to_ctype(ktype), name)
-                     for ktype, name in zip(arg_types, arg_names)]
-
-        sort_args = [arg.replace('GLOBAL_MEM', '__global')
-                     for arg in sort_args]
-
-        sort_knl = cl.algorithm.RadixSort(
-            get_context(),
-            sort_args,
-            scan_kernel=GenericScanKernel, key_expr="ary_0[i]",
-            sort_arg_names=arg_names
-        )
-
-        allocator = cl.tools.MemoryPool(
-            cl.tools.ImmediateAllocator(get_queue())
-        )
+        sort_knl = get_cl_sort_kernel(arg_types, ary_list)
+        allocator = get_allocator(get_queue())
 
         arg_list = [ary.dev for ary in ary_list]
 
