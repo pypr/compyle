@@ -1,7 +1,14 @@
 import sys
 from setuptools import setup, find_packages
-from Cython.Distutils import Extension
-from Cython.Build import cythonize
+
+try:
+    from Cython.Distutils import Extension
+    from Cython.Build import cythonize
+except ImportError:
+    from distutils.core import Extension
+
+    def cythonize(*args, **kw):
+        return args[0]
 
 
 def get_version():
