@@ -45,7 +45,12 @@ def getargspec(f):
 def get_ctype_from_arg(arg):
     if isinstance(arg, array.Array):
         return arg.gptr_type
-    elif isinstance(arg, np.ndarray) or isinstance(arg, np.floating):
+    elif isinstance(arg, np.ndarray):
+        if len(arg) > 1:
+            return dtype_to_knowntype(arg.dtype, address='global')
+        else:
+            return dtype_to_ctype(arg.dtype)
+    elif isinstance(arg, np.floating):
         return dtype_to_ctype(arg.dtype)
     else:
         if isinstance(arg, float):
