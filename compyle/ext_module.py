@@ -253,6 +253,8 @@ class ExtModule(object):
             with self._lock():
                 self._write_source(self.src_path)
                 self.build()
+        else:
+            self._message("Precompiled code from:", self.src_path)
 
     def load(self):
         """Load the built extension module.
@@ -274,6 +276,7 @@ class ExtModule(object):
             return ec, el
 
     def _message(self, *args):
-        logger.info(args)
+        msg = ' '.join(args)
+        logger.info(msg)
         if self.verbose:
-            print(' '.join(args))
+            print(msg)
