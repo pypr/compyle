@@ -493,7 +493,7 @@ class CythonGenerator(object):
                 indent = line[:line.index(name)]
                 return name, indent + defn + '\n'
             elif words[1].startswith('cast') and \
-               not line.strip().startswith('#'):
+                    not line.strip().startswith('#'):
                 name = words[0]
                 call = words[1]
                 stmt = self._handle_cast_statement(name, call)
