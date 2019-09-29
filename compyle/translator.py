@@ -384,6 +384,8 @@ class CConverter(ast.NodeVisitor):
                 return '(&%s)' % self.visit(node.args[0])
             elif 'atomic' in node.func.id:
                 return self.render_atomic(node.func.id, node.args[0])
+            elif node.func.id == 'cast':
+                return '(%s) (%s)' % (node.args[1].s, self.visit(node.args[0]))
             else:
                 return '{func}({args})'.format(
                     func=node.func.id,

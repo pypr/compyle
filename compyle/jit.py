@@ -18,9 +18,24 @@ from . import array
 from . import parallel
 
 
+def memoize_kernel(key=lambda *args: args):
+    def memoize_deco(method):
+        def wrapper(*args):
+            f = args[0].func
+            key_val = key(*args)
+            if not hasattr(f, 'cached_kernel'):
+                setattr(f, 'cached_kernel', {key_val: method(*args)})
+            elif key_val not in f.cached_kernel:
+                f.cached_kernel[key_val] = method(*args)
+            return f.cached_kernel[key_val]
+        return wrapper
+    return memoize_deco
+
+
 def kernel_cache_key_args(obj, *args):
     key = [get_ctype_from_arg(arg) for arg in args]
     key.append(obj.func)
+    key.append(obj.name)
     key.append(obj.backend)
     key.append(obj._config.use_openmp)
     return tuple(key)
@@ -205,6 +220,12 @@ class AnnotationHelper(ast.NodeVisitor):
                     names = [x.id for x in left.elts]
                     for name in names:
                         self.var_types[name] = self.get_type(type)
+            elif right.func.id == 'cast':
+                if not isinstance(right.args[1], ast.Str):
+                    self.error("Cast type should be a string.", node)
+                type = right.args[1].s
+                if isinstance(left, ast.Name):
+                    self.var_types[left.id] = self.get_type(type)
             elif isinstance(left, ast.Name):
                 if left.id not in self.var_types and \
                         left.id not in self.undecl_var_types:
@@ -268,7 +289,7 @@ class ElementwiseJIT(parallel.ElementwiseBase):
         backend = array.get_backend(backend)
         self.tp = Transpiler(backend=backend)
         self.backend = backend
-        self.name = func.__name__
+        self.name = 'elwise_%s' % func.__name__
         self.func = func
         self._config = get_config()
         self.cython_gen = CythonGenerator()
@@ -289,7 +310,7 @@ class ElementwiseJIT(parallel.ElementwiseBase):
             type_info[name] = arg_type
         return type_info
 
-    @memoize(key=kernel_cache_key_args)
+    @memoize_kernel(key=kernel_cache_key_args)
     def _generate_kernel(self, *args):
         if self.func is not None:
             arg_types = self.get_type_info_from_args(*args)
@@ -364,7 +385,7 @@ class ReductionJIT(parallel.ReductionBase):
             type_info[name] = arg_type
         return type_info
 
-    @memoize(key=kernel_cache_key_args)
+    @memoize_kernel(key=kernel_cache_key_args)
     def _generate_kernel(self, *args):
         if self.func is not None:
             arg_types = self.get_type_info_from_args(*args)

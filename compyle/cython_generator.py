@@ -451,6 +451,14 @@ class CythonGenerator(object):
             defn = 'cdef {type} {name}'.format(type=ctype, name=name)
             return defn
 
+    def _handle_cast_statement(self, name, call):
+        # FIXME: This won't handle casting to pointers
+        # using something like 'intp'
+        call_args = call[5:-1].split(',')
+        expr = call_args[0].strip()
+        ctype = call_args[1].strip()[1:-1]
+        return '%s = <%s> (%s)' % (name, ctype, expr)
+
     def _parse_function(self, obj, declarations=None):
         c_code, py_code = self._get_method_wrapper(obj, indent=' ' * 4,
                                                    declarations=declarations)
@@ -484,6 +492,13 @@ class CythonGenerator(object):
                 defn = self._handle_declare_statement(name, declare)
                 indent = line[:line.index(name)]
                 return name, indent + defn + '\n'
+            elif words[1].startswith('cast') and \
+               not line.strip().startswith('#'):
+                name = words[0]
+                call = words[1]
+                stmt = self._handle_cast_statement(name, call)
+                indent = line[:line.index(name)]
+                return '', indent + stmt + '\n'
             else:
                 return '', line
         else:
