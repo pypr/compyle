@@ -1367,3 +1367,36 @@ def test_atomic_works():
     ''')
 
     assert code.strip() == expect.strip()
+
+def test_cast_works():
+    # Given
+    def f(x=1.0):
+        return cast(x, "float")
+
+    # When
+    t = OpenCLConverter()
+    code = t.parse_function(f)
+
+    # Then
+    expect = dedent('''
+    WITHIN_KERNEL double f(double x)
+    {
+        return (float) (x);
+    }
+    ''')
+
+    assert code.strip() == expect.strip()
+
+    # When
+    t = CUDAConverter()
+    code = t.parse_function(f)
+
+    # Then
+    expect = dedent('''
+    WITHIN_KERNEL double f(double x)
+    {
+        return (float) (x);
+    }
+    ''')
+
+    assert code.strip() == expect.strip()
