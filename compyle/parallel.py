@@ -380,7 +380,7 @@ class ElementwiseBase(object):
         backend = array.get_backend(backend)
         self.tp = Transpiler(backend=backend)
         self.backend = backend
-        self.name = func.__name__
+        self.name = 'elwise_%s' % func.__name__
         self.func = func
         self._config = get_config()
         self.cython_gen = CythonGenerator()
@@ -390,13 +390,14 @@ class ElementwiseBase(object):
     def _generate(self, declarations=None):
         self.tp.add(self.func, declarations=declarations)
         if self.backend == 'cython':
+            # FIXME: Handle the name of the kernel correctly
             py_data, c_data = self.cython_gen.get_func_signature(self.func)
             py_defn = ['long SIZE'] + py_data[0][1:]
             c_defn = ['long SIZE'] + c_data[0][1:]
             py_args = ['SIZE'] + py_data[1][1:]
             template = Template(text=elementwise_cy_template)
             src = template.render(
-                name=self.name,
+                name=self.name[7:],
                 c_arg_sig=', '.join(c_defn),
                 c_args=', '.join(c_data[1]),
                 py_arg_sig=', '.join(py_defn),
@@ -406,7 +407,7 @@ class ElementwiseBase(object):
             )
             self.tp.add_code(src)
             self.tp.compile()
-            return getattr(self.tp.mod, 'py_' + self.name)
+            return getattr(self.tp.mod, 'py_' + self.name[7:])
         elif self.backend == 'opencl':
             py_data, c_data = self.cython_gen.get_func_signature(self.func)
             self._correct_opencl_address_space(c_data)
@@ -428,7 +429,7 @@ class ElementwiseBase(object):
             )
             knl = ElementwiseKernel(
                 ctx,
-                name='elwise_%s' % self.name,
+                name=self.name,
                 arguments=arguments,
                 operation=expr,
                 preamble="\n".join([cluda_preamble, preamble])
@@ -453,7 +454,7 @@ class ElementwiseBase(object):
                 double_support=True
             )
             knl = ElementwiseKernel(
-                name='elwise_%s' % self.name,
+                name=self.name,
                 arguments=arguments,
                 operation=expr,
                 preamble="\n".join([cluda_preamble, preamble])

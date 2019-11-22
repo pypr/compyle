@@ -319,11 +319,20 @@ class _atomic_inc(Extern):
         pass
 
 
+class _cast(Extern):
+    def code(self, backend):
+        return ''
+
+    def __call__(self, *args, **kw):
+        pass
+
+
 prange = _prange()
 parallel = _parallel()
 nogil = _nogil()
 address = _address()
 atomic_inc = _atomic_inc()
+cast = _cast()
 
 
 class Cython(object):
