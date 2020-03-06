@@ -24,7 +24,7 @@ tests_require = ['pytest']
 if sys.version_info[0] < 3:
     tests_require += ['mock>=1.0']
 docs_require = ['sphinx']
-cuda_require = ['pycuda']
+cuda_require = ['pycuda', 'cupy']
 opencl_require = ['pyopencl']
 
 classes = '''
