@@ -1,7 +1,7 @@
 [build-system]
 requires = [
-    "wheel",
-    "setuptools",
+    "wheel>=0.29.0",
+    "setuptools>=42.0.0",
     "oldest-supported-numpy",
     "Cython>=0.20",
     "mako",
