@@ -1,9 +1,10 @@
 environment:
 
   matrix:
-    - PYTHON: "C:\\Python36-x64"
     - PYTHON: "C:\\Python37-x64"
     - PYTHON: "C:\\Python38-x64"
+
+skip_branch_with_pr: true
 
 install:
   - "%PYTHON%\\python.exe -m pip install -r requirements.txt"
