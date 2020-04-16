@@ -13,14 +13,17 @@ install:
     - sudo apt-get update
     - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
     - bash miniconda.sh -b -p $HOME/miniconda
-    - export PATH="$HOME/miniconda/bin:$PATH"
+    - source "$HOME/miniconda/etc/profile.d/conda.sh"
     - hash -r
     - conda config --set always_yes yes --set changeps1 no
     - conda update -q conda
     - conda info -a
     - conda config --add channels conda-forge
     - conda config --add channels defaults
-    - conda install -c conda-forge pocl==1.2 pyopencl cython numpy
+
+    - conda create -q -n testenv python=$TRAVIS_PYTHON_VERSION
+    - conda activate testenv
+    - conda install -c conda-forge pocl==1.2 pyopencl numpy cython
     - python -c 'import pyopencl as cl'
     - pip install -r requirements.txt
     - pip install coverage codecov
