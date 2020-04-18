@@ -57,6 +57,23 @@ def get_unicode(s):
         return unicode(s)
 
 
+def get_openmp_flags():
+    """Return the OpenMP flags for the platform.
+
+    This returns two lists, [extra_compile_args], [extra_link_args]
+    """
+    if sys.platform == 'win32':
+        return ['/openmp'], []
+    elif sys.platform == 'darwin':
+        if (os.environ.get('CC') is not None and
+           os.environ.get('CXX') is not None):
+            return ['-fopenmp'], ['-fopenmp']
+        else:
+            return ['-Xpreprocessor', '-fopenmp'], ['-lomp']
+    else:
+        return ['-fopenmp'], ['-fopenmp']
+
+
 class ExtModule(object):
     """Encapsulates the generated code, extension module etc.
     """
@@ -268,10 +285,8 @@ class ExtModule(object):
     def _get_extra_args(self):
         ec, el = self.extra_compile_args, self.extra_link_args
         if get_config().use_openmp:
-            if sys.platform == 'win32':
-                return ['/openmp'] + ec, [] + el
-            else:
-                return ['-fopenmp'] + ec, ['-fopenmp'] + el
+            _ec, _el = get_openmp_flags()
+            return _ec + ec, _el + el
         else:
             return ec, el
 
