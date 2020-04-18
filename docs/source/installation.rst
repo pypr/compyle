@@ -69,7 +69,7 @@ The default clang compiler available on MacOS uses an LLVM backend and does
 not support OpenMP_. There are two ways to support OpenMP. The first involves
 installing the OpenMP support for clang. This can be done with brew_ using::
 
-  $ brew install omp
+  $ brew install libomp
 
 Once that is done, it should "just work". If you get strange errors, try
 setting the ``MACOSX_DEPLOYMENT_TARGET`` as shown above.
