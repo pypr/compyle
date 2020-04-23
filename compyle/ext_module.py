@@ -4,13 +4,12 @@ from distutils.sysconfig import get_config_vars
 from distutils.util import get_platform
 from distutils.errors import CompileError, LinkError
 import hashlib
-import imp
 import importlib
 import io
 import logging
 import numpy
 import os
-from os.path import dirname, exists, expanduser, isdir, join
+from os.path import exists, expanduser, isdir, join
 from pyximport import pyxbuild
 import shutil
 import sys
@@ -279,8 +278,10 @@ class ExtModule(object):
         Returns
         """
         self.write_and_build()
-        file, path, desc = imp.find_module(self.name, [dirname(self.ext_path)])
-        return imp.load_module(self.name, file, path, desc)
+        spec = importlib.util.spec_from_file_location(self.name, self.ext_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
 
     def _get_extra_args(self):
         ec, el = self.extra_compile_args, self.extra_link_args

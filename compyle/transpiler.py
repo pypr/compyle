@@ -140,6 +140,7 @@ class Transpiler(object):
         if backend == 'cython':
             self._cgen = CythonGenerator()
             self.header = dedent('''
+            # cython: language_level=3
             from libc.stdio cimport printf
             from libc.math cimport *
             from libc.math cimport fabs as abs
