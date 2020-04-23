@@ -62,8 +62,8 @@ cdef int gcd(int a, int b):
         a, b = b, a%b
     return a
 
-cdef int get_stride(sz, itemsize):
-    return sz/gcd(sz, itemsize)
+cdef int get_stride(int sz, int itemsize):
+    return sz//gcd(sz, itemsize)
 
 
 cdef ${type} c_${name}(${c_arg_sig}):
@@ -130,7 +130,7 @@ cdef int gcd(int a, int b):
     return a
 
 cdef int get_stride(int sz, int itemsize):
-    return sz / gcd(sz, itemsize)
+    return sz // gcd(sz, itemsize)
 
 
 cdef void c_${name}(${c_arg_sig}):
@@ -175,7 +175,7 @@ cdef void c_${name}(${c_arg_sig}):
     # between threads
     % if not calc_last_item:
     # A chunk of 1 MB per thread
-    cdef int chunksize = 1048576 / sz
+    cdef int chunksize = 1048576 // sz
     % else:
     # Process all data together. Only then can we get
     # the last item immediately
