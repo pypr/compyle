@@ -61,6 +61,7 @@ class TestExtModule(TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp()
         self.data = dedent('''\
+        # cython: language_level=3
         def f():
             return "hello world"
         ''')
@@ -112,7 +113,7 @@ class TestExtModule(TestCase):
         self.assertTrue(exists(s.ext_path))
 
     def _create_dummy_module(self):
-        code = "def hello(): return 'hello'"
+        code = "# cython: language_level=3\ndef hello(): return 'hello'"
         modname = 'test_rebuild.py'
         f = join(self.root, modname)
         with open(f, 'w') as fp:

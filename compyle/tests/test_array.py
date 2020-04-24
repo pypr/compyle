@@ -5,7 +5,7 @@ from ..array import Array
 import compyle.array as array
 
 
-test_all_backends = pytest.mark.parametrize('backend',
+check_all_backends = pytest.mark.parametrize('backend',
                                             ['cython', 'opencl', 'cuda'])
 
 
@@ -23,7 +23,7 @@ def check_import(backend):
         pytest.importorskip('pycuda')
 
 
-@test_all_backends
+@check_all_backends
 def test_reserve(backend):
     check_import(backend)
 
@@ -39,7 +39,7 @@ def test_reserve(backend):
     assert dev_array[0] == 1
 
 
-@test_all_backends
+@check_all_backends
 def test_resize_with_reallocation(backend):
     check_import(backend)
 
@@ -55,7 +55,7 @@ def test_resize_with_reallocation(backend):
     assert dev_array[0] == 1
 
 
-@test_all_backends
+@check_all_backends
 def test_resize_without_reallocation(backend):
     check_import(backend)
 
@@ -71,7 +71,7 @@ def test_resize_without_reallocation(backend):
     assert dev_array[0] == 1
 
 
-@test_all_backends
+@check_all_backends
 def test_copy(backend):
     check_import(backend)
 
@@ -89,7 +89,7 @@ def test_copy(backend):
     assert dev_array[0] != dev_array_copy[0]
 
 
-@test_all_backends
+@check_all_backends
 def test_append_with_reallocation(backend):
     check_import(backend)
 
@@ -104,7 +104,7 @@ def test_append_with_reallocation(backend):
     assert len(dev_array.get_data()) == 32
 
 
-@test_all_backends
+@check_all_backends
 def test_append_without_reallocation(backend):
     check_import(backend)
 
@@ -120,7 +120,7 @@ def test_append_without_reallocation(backend):
     assert len(dev_array.get_data()) == 20
 
 
-@test_all_backends
+@check_all_backends
 def test_extend(backend):
     check_import(backend)
 
@@ -137,7 +137,7 @@ def test_extend(backend):
     assert np.all(old_nparr[-len(new_array)] == new_nparr)
 
 
-@test_all_backends
+@check_all_backends
 def test_remove(backend):
     check_import(backend)
 
@@ -155,7 +155,7 @@ def test_remove(backend):
     assert np.all(dev_array.get() == (8 + indices).get())
 
 
-@test_all_backends
+@check_all_backends
 def test_align(backend):
     check_import(backend)
 
@@ -172,7 +172,7 @@ def test_align(backend):
     assert np.all(dev_array.get() == indices.get())
 
 
-@test_all_backends
+@check_all_backends
 def test_align_multiple(backend):
     check_import(backend)
 
@@ -196,7 +196,7 @@ def test_align_multiple(backend):
     assert np.all(dev_array_b.get() - 1024 == indices.get())
 
 
-@test_all_backends
+@check_all_backends
 def test_squeeze(backend):
     check_import(backend)
 
@@ -213,7 +213,7 @@ def test_squeeze(backend):
     assert dev_array.alloc == 16
 
 
-@test_all_backends
+@check_all_backends
 def test_copy_values(backend):
     check_import(backend)
 
@@ -231,7 +231,7 @@ def test_copy_values(backend):
     assert np.all(dev_array[:len(indices)].get() == dest.get())
 
 
-@test_all_backends
+@check_all_backends
 def test_min_max(backend):
     check_import(backend)
 
@@ -248,7 +248,7 @@ def test_min_max(backend):
     assert dev_array.maximum == 10
 
 
-@test_all_backends
+@check_all_backends
 def test_sort_by_keys(backend):
     check_import(backend)
 
@@ -262,7 +262,7 @@ def test_sort_by_keys(backend):
     assert np.all(out_array.get() == np.sort(dev_array.get()))
 
 
-@test_all_backends
+@check_all_backends
 def test_dot(backend):
     check_import(backend)
 
