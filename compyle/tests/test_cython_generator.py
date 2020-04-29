@@ -6,10 +6,10 @@ from math import pi, sin
 import sys
 
 
-from ..config import get_config, set_config
+from ..config import get_config, set_config, use_config
 from ..types import declare, KnownType, annotate
 from ..cython_generator import (CythonGenerator, CythonClassHelper,
-                                all_numeric)
+                                all_numeric, get_parallel_range)
 
 
 class BasicEq:
@@ -122,6 +122,81 @@ class TestMiscUtils(TestBase):
                 return x+1
         """)
         self.assert_code_equal(c.generate().strip(), expect.strip())
+
+    def test_get_parallel_range_without_openmp(self):
+        with use_config(use_openmp=False):
+            # Given/When
+            res = get_parallel_range('NP')
+            # Then
+            self.assertEqual(res, 'range(0, NP, 1)')
+
+            # Given/When
+            res = get_parallel_range('START', 'NP')
+            # Then
+            self.assertEqual(res, 'range(START, NP, 1)')
+
+            # Given/When
+            res = get_parallel_range('NP', step=2)
+            # Then
+            self.assertEqual(res, 'range(0, NP, 2)')
+
+            # Given/When
+            res = get_parallel_range(1, 'NP+1', 2)
+            # Then
+            self.assertEqual(res, 'range(1, NP+1, 2)')
+
+    def test_get_parallel_range_with_openmp(self):
+        with use_config(use_openmp=True):
+            cfg = get_config()
+            sched, chunk = cfg.omp_schedule
+            # Given/When
+            res = get_parallel_range('NP')
+            # Then
+            expect = "prange(0, NP, 1, schedule='{}', chunksize={})".format(
+                sched, chunk
+            )
+            self.assertEqual(res, expect)
+
+            # Given/When
+            res = get_parallel_range('START', 'NP', 2)
+            # Then
+            expect = (
+                "prange(START, NP, 2, schedule='{}', chunksize={})".format(
+                    sched, chunk
+                )
+            )
+            self.assertEqual(res, expect)
+
+            # Given/When
+            res = get_parallel_range('NP', nogil=True)
+            # Then
+            expect = (
+                "prange(0, NP, 1, schedule='{}', chunksize={}, "
+                "nogil=True)".format(
+                    sched, chunk
+                )
+            )
+            self.assertEqual(res, expect)
+
+            # Given/When
+            res = get_parallel_range('NP', nogil=True, num_threads=4)
+            # Then
+            expect = (
+                "prange(0, NP, 1, schedule='{}', chunksize={}, "
+                "nogil=True, num_threads=4)".format(
+                    sched, chunk
+                )
+            )
+            self.assertEqual(res, expect)
+
+        with use_config(use_openmp=True, omp_schedule=('static', 32)):
+            # Given/When
+            res = get_parallel_range('NP')
+            # Then
+            expect = "prange(0, NP, 1, schedule='{}', chunksize={})".format(
+                'static', 32
+            )
+            self.assertEqual(res, expect)
 
 
 class TestCythonCodeGenerator(TestBase):

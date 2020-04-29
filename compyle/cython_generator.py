@@ -27,22 +27,29 @@ from .utils import getsourcelines
 logger = logging.getLogger(__name__)
 
 
-def get_parallel_range(start, stop=None, step=1):
+def get_parallel_range(start, stop=None, step=1, **kwargs):
     config = get_config()
     if stop is None:
         stop = start
         start = 0
 
-    args = "{start},{stop},{step}"
+    args = "{start}, {stop}, {step}"
     if config.use_openmp:
         schedule = config.omp_schedule[0]
         chunksize = config.omp_schedule[1]
+        if 'schedule' in kwargs:
+            schedule = kwargs.pop('schedule')
+        if 'chunksize' in kwargs:
+            chunksize = kwargs.pop('chunksize')
 
         if schedule is not None:
             args = args + ", schedule='{schedule}'"
 
         if chunksize is not None:
             args = args + ", chunksize={chunksize}"
+
+        for k, v in kwargs.items():
+            args = args + ", %s=%r" % (k, v)
 
         args = args.format(start=start, stop=stop, step=step,
                            schedule=schedule, chunksize=chunksize)
