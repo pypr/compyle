@@ -676,7 +676,7 @@ class Array(object):
         elif isinstance(key, Array):
             return self.align(key)
         # NOTE: Not sure about this, done for PyCUDA compatibility
-        if self.backend is not 'cython':
+        if not self.backend == 'cython':
             return self.dev[key].get()
         else:
             return self.dev[key]

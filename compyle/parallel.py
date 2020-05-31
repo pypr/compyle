@@ -375,6 +375,20 @@ def drop_duplicates(arr):
     return result
 
 
+def serial(func=None, **kw):
+    """Decorator to specify serial execution of a cython
+    function
+    """
+    def wrapper(func):
+        func.is_serial = True
+        return func
+
+    if func is None:
+        return wrapper
+    else:
+        return wrapper(func)
+
+
 class ElementwiseBase(object):
     def __init__(self, func, backend=None):
         backend = array.get_backend(backend)
@@ -402,7 +416,8 @@ class ElementwiseBase(object):
                 c_args=', '.join(c_data[1]),
                 py_arg_sig=', '.join(py_defn),
                 py_args=', '.join(py_args),
-                openmp=self._config.use_openmp,
+                openmp=self._config.use_openmp and not getattr(
+                    self.func, 'is_serial', False),
                 get_parallel_range=get_parallel_range
             )
             self.tp.add_code(src)

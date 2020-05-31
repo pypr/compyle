@@ -225,7 +225,10 @@ class AnnotationHelper(ast.NodeVisitor):
                     self.error("Cast type should be a string.", node)
                 type = right.args[1].s
                 if isinstance(left, ast.Name):
-                    self.var_types[left.id] = self.get_type(type)
+                    self.undecl_var_types[left.id] = self.get_type(type)
+            elif right.func.id == 'atomic_inc':
+                if isinstance(left, ast.Name):
+                    self.undecl_var_types[left.id] = self.visit(right.args[0])
             elif isinstance(left, ast.Name):
                 if left.id not in self.var_types and \
                         left.id not in self.undecl_var_types:
