@@ -361,8 +361,8 @@ class CythonGenerator(object):
             inspect, 'getfullargspec', inspect.getargspec
         )
         args = set(getfullargspec(meth).args)
-        src = [self._process_body_line(line, is_serial=is_serial) \
-                for line in lines]
+        src = [self._process_body_line(line, is_serial=is_serial)
+               for line in lines]
         if declarations:
             cy_decls = []
             for var, decl in declarations.items():
@@ -481,7 +481,7 @@ class CythonGenerator(object):
         call_arg = call[11:-1].strip()
         if self._config.use_openmp and not is_serial:
             return['openmp.omp_set_lock(&cy_lock)', '%s = %s' % (name, call_arg),
-                    '%s += 1' % call_arg, 'openmp.omp_unset_lock(&cy_lock)']
+                   '%s += 1' % call_arg, 'openmp.omp_unset_lock(&cy_lock)']
         else:
             return ['%s = %s' % (name, call_arg), '%s += 1' % call_arg]
 

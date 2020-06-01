@@ -7,8 +7,6 @@ from compyle.api import declare, annotate
 from compyle.parallel import Elementwise, Reduction
 from compyle.array import get_backend, wrap
 
-from nnps import NNPS, ParticleArrayWrapper
-
 import compyle.array as carr
 
 
@@ -19,18 +17,17 @@ def calculate_energy(i, vx, vy, pe, num_particles):
 
 
 @annotate
-def calculate_force(i, x, y, fx, fy, pe, nbr_starts, nbr_lengths, nbrs):
+def calculate_force(i, x, y, fx, fy, pe, num_particles):
     force_cutoff = 3.
     force_cutoff2 = force_cutoff * force_cutoff
-    start_idx = nbr_starts[i]
-    length = nbr_lengths[i]
-    for k in range(start_idx, start_idx + length):
-        j = nbrs[k]
+    for j in range(num_particles):
         if i == j:
             continue
         xij = x[i] - x[j]
         yij = y[i] - y[j]
         rij2 = xij * xij + yij * yij
+        if rij2 > force_cutoff2:
+            continue
         irij2 = 1.0 / rij2
         irij6 = irij2 * irij2 * irij2
         irij12 = irij6 * irij6
@@ -43,8 +40,7 @@ def calculate_force(i, x, y, fx, fy, pe, nbr_starts, nbr_lengths, nbrs):
 
 @annotate
 def step_method1(i, x, y, vx, vy, fx, fy, pe, xmin, xmax,
-                 ymin, ymax, m, dt, nbr_starts, nbr_lengths,
-                 nbrs):
+                 ymin, ymax, m, dt, num_particles):
     integrate_step1(i, m, dt, x, y, vx, vy, fx, fy)
     boundary_condition(i, x, y, vx, vy, fx, fy, pe, xmin, xmax,
                        ymin, ymax)
@@ -52,9 +48,8 @@ def step_method1(i, x, y, vx, vy, fx, fy, pe, xmin, xmax,
 
 @annotate
 def step_method2(i, x, y, vx, vy, fx, fy, pe, xmin, xmax,
-                 ymin, ymax, m, dt, nbr_starts, nbr_lengths,
-                 nbrs):
-    calculate_force(i, x, y, fx, fy, pe, nbr_starts, nbr_lengths, nbrs)
+                 ymin, ymax, m, dt, num_particles):
+    calculate_force(i, x, y, fx, fy, pe, num_particles)
     integrate_step2(i, m, dt, x, y, vx, vy, fx, fy)
 
 
@@ -105,22 +100,18 @@ class MDSolver(object):
     def __init__(self, num_particles, x=None, y=None, vx=None, vy=None,
                  xmax=100., ymax=100., dx=1.5, init_T=0.,
                  backend=None):
-        self.backend = get_backend(backend)
+        self.backend = backend
         self.num_particles = num_particles
         self.xmin, self.xmax = 0., xmax
         self.ymin, self.ymax = 0., ymax
         self.m = 1.
-        self.pa = ParticleArrayWrapper()
         if x is None and y is None:
-            self.pa.x, self.pa.y = self.setup_positions(num_particles, dx)
+            self.x, self.y = self.setup_positions(num_particles, dx)
         if vx is None and vy is None:
-            self.pa.vx, self.pa.vy = self.setup_velocities(init_T,
-                                                           num_particles)
-        self.pa.fx = carr.zeros_like(self.pa.x, backend=self.backend)
-        self.pa.fy = carr.zeros_like(self.pa.x, backend=self.backend)
-        self.pa.pe = carr.zeros_like(self.pa.x, backend=self.backend)
-        self.nnps = NNPS(self.pa, 3., self.xmax, self.ymax,
-                         backend=self.backend)
+            self.vx, self.vy = self.setup_velocities(init_T, num_particles)
+        self.fx = carr.zeros_like(self.x, backend=self.backend)
+        self.fy = carr.zeros_like(self.x, backend=self.backend)
+        self.pe = carr.zeros_like(self.x, backend=self.backend)
         self.init_forces = Elementwise(calculate_force, backend=self.backend)
         self.step1 = Elementwise(step_method1, backend=self.backend)
         self.step2 = Elementwise(step_method2, backend=self.backend)
@@ -153,44 +144,35 @@ class MDSolver(object):
         return wrap(x, y, backend=self.backend)
 
     def post_step(self, t):
-        energy = self.energy_calc(self.pa.vx, self.pa.vy, self.pa.pe,
+        energy = self.energy_calc(self.vx, self.vy, self.pe,
                                   self.num_particles)
         print("Energy at time =", t, "is", energy)
 
     def solve(self, t, dt):
         num_steps = int(t // dt)
         curr_t = 0.
-        self.nnps.build()
-        self.nnps.get_neighbors()
-        self.init_forces(self.pa.x, self.pa.y, self.pa.fx, self.pa.fy,
-                         self.pa.pe, self.nnps.nbr_starts,
-                         self.nnps.nbr_lengths, self.nnps.nbrs)
+        self.init_forces(self.x, self.y, self.fx, self.fy, self.pe,
+                         self.num_particles)
         for i in range(num_steps):
-            self.pa.x.update_min_max()
-            self.pa.y.update_min_max()
-            self.step1(self.pa.x, self.pa.y, self.pa.vx, self.pa.vy, self.pa.fx,
-                       self.pa.fy, self.pa.pe, self.xmin, self.xmax, self.ymin,
-                       self.ymax, self.m, dt, self.nnps.nbr_starts,
-                       self.nnps.nbr_lengths, self.nnps.nbrs)
-            self.nnps.build()
-            self.nnps.get_neighbors()
-            self.step2(self.pa.x, self.pa.y, self.pa.vx, self.pa.vy, self.pa.fx,
-                       self.pa.fy, self.pa.pe, self.xmin, self.xmax, self.ymin,
-                       self.ymax, self.m, dt, self.nnps.nbr_starts,
-                       self.nnps.nbr_lengths, self.nnps.nbrs)
+            self.step1(self.x, self.y, self.vx, self.vy, self.fx, self.fy,
+                       self.pe, self.xmin, self.xmax, self.ymin, self.ymax,
+                       self.m, dt, self.num_particles)
+            self.step2(self.x, self.y, self.vx, self.vy, self.fx, self.fy,
+                       self.pe, self.xmin, self.xmax, self.ymin, self.ymax,
+                       self.m, dt, self.num_particles)
             curr_t += dt
             if i % 100 == 0:
                 self.post_step(curr_t)
 
     def pull(self):
-        self.pa.x.pull()
-        self.pa.y.pull()
+        self.x.pull()
+        self.y.pull()
 
     def plot(self):
         import matplotlib.pyplot as plt
         plt.xlim(self.xmin, self.xmax)
         plt.ylim(self.ymin, self.ymax)
-        plt.scatter(self.pa.x.data, self.pa.y.data, 4.2)
+        plt.scatter(self.x.data, self.y.data, 4.2)
         plt.savefig("sim.png", dpi=300)
 
 

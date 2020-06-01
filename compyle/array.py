@@ -118,7 +118,8 @@ def minmax_collector_key(device, dtype, props, name, *args):
 
 
 @memoize(key=minmax_collector_key)
-def make_collector_dtype(device, dtype, props, name, only_min, only_max, backend):
+def make_collector_dtype(device, dtype, props, name,
+                         only_min, only_max, backend):
     fields = [("pad", np.int32)]
 
     for prop in props:
@@ -143,7 +144,7 @@ def make_collector_dtype(device, dtype, props, name, only_min, only_max, backend
 
 @memoize(key=lambda *args: (args[-3], args[-2], args[-1]))
 def get_minmax_kernel(ctx, dtype, inf, mmc_dtype, prop_names,
-                       only_min, only_max, name, mmc_c_decl, backend):
+                      only_min, only_max, name, mmc_c_decl, backend):
     tpl_args = ", ".join(
         ["%(dtype)s %(prop)s" % {'dtype': dtype, 'prop': prop}
             for prop in prop_names]
@@ -157,7 +158,7 @@ def get_minmax_kernel(ctx, dtype, inf, mmc_dtype, prop_names,
         )
         mmc_c_decl_lines = mmc_c_decl.splitlines()
         mmc_c_decl_lines = mmc_c_decl_lines[:-2] + \
-                mmc_overload.splitlines() + mmc_c_decl_lines[-2:]
+            mmc_overload.splitlines() + mmc_c_decl_lines[-2:]
         mmc_c_decl = '\n'.join(mmc_c_decl_lines)
 
     mmc_preamble = mmc_c_decl + minmax_tpl
@@ -455,12 +456,20 @@ def get_allocator(queue):
 
 def sort_by_keys(ary_list, out_list=None, key_bits=None,
                  backend=None):
+    # FIXME: Need to use returned values, using out_list
+    # doesn't work
     # first arg of ary_list is the key
     if backend is None:
         backend = ary_list[0].backend
     if backend == 'opencl':
         from .jit import get_ctype_from_arg
         from compyle.opencl import get_queue
+
+        if not out_list:
+            out_list = [
+                Array(ary.dtype, allocate=False, backend=backend)
+                for ary in ary_list
+            ]
 
         arg_types = [get_ctype_from_arg(arg) for arg in ary_list]
 
@@ -469,12 +478,17 @@ def sort_by_keys(ary_list, out_list=None, key_bits=None,
 
         arg_list = [ary.dev for ary in ary_list]
 
-        out_list, event = sort_knl(*arg_list, key_bits=key_bits,
-                                   allocator=allocator)
+        out_arrays, event = sort_knl(*arg_list, key_bits=key_bits,
+                                     allocator=allocator)
+        for i, out in enumerate(out_list):
+            out.set_data(out_arrays[i])
         return out_list
     else:
         order = argsort(ary_list[0], backend=backend)
-        out_list = align(ary_list[1:], order, out_list=out_list,
+        modified_out_list = None
+        if out_list:
+            modified_out_list = out_list[1:]
+        out_list = align(ary_list[1:], order, out_list=modified_out_list,
                          backend=backend)
         return [ary_list[0]] + out_list
 
@@ -611,6 +625,7 @@ def key_align_kernel(ary_list, order, backend=None):
     from .jit import get_ctype_from_arg
     key = [get_ctype_from_arg(ary) for ary in ary_list]
     key.append(backend)
+    key.append(get_config().use_openmp)
     return tuple(key)
 
 
@@ -676,7 +691,7 @@ class Array(object):
         elif isinstance(key, Array):
             return self.align(key)
         # NOTE: Not sure about this, done for PyCUDA compatibility
-        if not self.backend == 'cython':
+        if self.backend != 'cython':
             return self.dev[key].get()
         else:
             return self.dev[key]
@@ -815,7 +830,6 @@ class Array(object):
             self.maximum = self.maximum.astype(self.dtype)
         else:
             update_minmax_gpu([self])
-
 
     def fill(self, value):
         self.dev.fill(value)
