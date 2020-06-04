@@ -37,6 +37,13 @@ def undefined_call(x):
     foo(x)
 
 
+def _factorial(num):
+    if num == 0:
+        return 1
+    else:
+        return num*_factorial(num - 1)
+
+
 class TestTranspiler(unittest.TestCase):
     def test_get_external_symbols_and_calls(self):
         # Given/When
@@ -64,6 +71,18 @@ class TestTranspiler(unittest.TestCase):
         # Given/When
         self.assertRaises(NameError, get_external_symbols_and_calls,
                           undefined_call, 'cython')
+
+    def test_get_external_symbols_and_calls_handles_recursion(self):
+        # Given/When
+        syms, implicit, calls, ext = get_external_symbols_and_calls(
+            _factorial, 'cython'
+        )
+
+        # Then
+        self.assertEqual(syms, {})
+        self.assertEqual(calls, [])
+        self.assertEqual(implicit, set())
+        self.assertEqual(ext, [])
 
     def test_transpiler(self):
         # Given

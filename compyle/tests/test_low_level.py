@@ -147,6 +147,14 @@ def cy_extern(x, y, a, n):
             y[i] = x[i] * a
 
 
+@annotate(int='num, return_')
+def _factorial(num):
+    if num == 0:
+        return 1
+    else:
+        return num*_factorial(num - 1)
+
+
 class TestCython(unittest.TestCase):
     def test_cython_code_with_return_and_nested_call(self):
         # Given
@@ -177,3 +185,12 @@ class TestCython(unittest.TestCase):
 
         # Then
         self.assertTrue(np.allclose(y, x * a))
+
+    def test_recursive_function(self):
+        # Given/when
+        fac = Cython(_factorial)
+
+        # Then
+        self.assertEqual(fac(0), 1)
+        self.assertEqual(fac(1), 1)
+        self.assertEqual(fac(3), 6)

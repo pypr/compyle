@@ -69,6 +69,8 @@ def get_external_symbols_and_calls(func, backend):
     names, calls = get_unknown_names_and_calls(src)
     names -= ignore
     calls = filter_calls(calls)
+    if func.__name__ in calls:
+        calls.remove(func.__name__)
     mod = importlib.import_module(func.__module__)
     symbols = {}
     implicit = set()
