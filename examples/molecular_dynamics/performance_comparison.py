@@ -31,9 +31,12 @@ def compare(backends, n_list, niter=3):
             if "omp" in backend:
                 get_config().use_openmp = False
 
-    for backend in backends:
-        for i, n in enumerate(n_list):
-            speedups[backend].append(t_list["cython"][i] / t_list[backend][i])
+    if 'cython' in backends:
+        for backend in backends:
+            for i, n in enumerate(n_list):
+                speedups[backend].append(t_list["cython"][i] / t_list[backend][i])
+    else:
+        speedups = None
 
     return speedups, t_list
 
@@ -44,15 +47,16 @@ def plot(n_list, speedups, t_list):
     import matplotlib.pyplot as plt
     plt.figure()
 
-    for backend, arr in speedups.items():
-        if backend == "cython":
-            continue
-        plt.semilogx(n_list, arr, 'x-', label=backend_label_map[backend])
+    if speedups:
+        for backend, arr in speedups.items():
+            if backend == "cython":
+                continue
+            plt.semilogx(n_list, arr, 'x-', label=backend_label_map[backend])
 
-    plt.xlabel("Number of particles")
-    plt.ylabel("Speedup")
-    plt.legend()
-    plt.savefig("speedup_%s.png" % "_".join(speedups.keys()), dpi=300)
+        plt.xlabel("Number of particles")
+        plt.ylabel("Speedup")
+        plt.legend()
+        plt.savefig("speedup_%s.png" % "_".join(speedups.keys()), dpi=300)
 
     plt.clf()
 
@@ -62,11 +66,11 @@ def plot(n_list, speedups, t_list):
     plt.xlabel("Number of particles")
     plt.ylabel("Time (secs)")
     plt.legend()
-    plt.savefig("time_%s.png" % "_".join(speedups.keys()), dpi=300)
+    plt.savefig("time_%s.png" % "_".join(t_list.keys()), dpi=300)
 
 
 if __name__ == "__main__":
-    backends = ["cython", "opencl", "cuda"]
-    n_list = [10000, 40000, 160000, 640000, 2560000, 10240000]
+    backends = ["opencl", "cuda"]
+    n_list = [10000, 40000, 160000, 640000, 2560000, 10240000, 40960000]
     speedups, t_list = compare(backends, n_list)
     plot(n_list, speedups, t_list)
