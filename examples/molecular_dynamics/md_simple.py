@@ -98,7 +98,7 @@ def boundary_condition(i, x, y, vx, vy, fx, fy, pe, xmin, xmax, ymin, ymax):
 
 class MDSolver(object):
     def __init__(self, num_particles, x=None, y=None, vx=None, vy=None,
-                 xmax=100., ymax=100., dx=1.2, init_T=0.,
+                 xmax=100., ymax=100., dx=1.5, init_T=0.,
                  backend=None):
         self.backend = backend
         self.num_particles = num_particles
@@ -121,7 +121,6 @@ class MDSolver(object):
     def setup_velocities(self, T, num_particles):
         np.random.seed(123)
         vx = np.random.uniform(0, 1., size=num_particles).astype(np.float32)
-        np.random.seed(456)
         vy = np.random.uniform(0, 1., size=num_particles).astype(np.float32)
         T_current = np.average(vx ** 2 + vy ** 2)
         scaling_factor = (T / T_current) ** 0.5
@@ -132,6 +131,10 @@ class MDSolver(object):
     def setup_positions(self, num_particles, dx):
         ndim = np.ceil(num_particles ** 0.5)
         dim_length = ndim * dx
+
+        self.xmax = dim_length * 3
+        self.ymax = dim_length * 3
+
         xmin_eff = ((self.xmax - self.xmin) - dim_length) / 2.
         xmax_eff = ((self.xmax - self.xmin) + dim_length) / 2.
 

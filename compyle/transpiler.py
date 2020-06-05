@@ -148,6 +148,15 @@ class Transpiler(object):
             from libc.math cimport fabs as abs
             from cython.parallel import parallel, prange
             ''')
+
+            if get_config().use_openmp:
+                self.header += dedent('''
+                cimport openmp
+
+                cdef openmp.omp_lock_t cy_lock
+                openmp.omp_init_lock(&cy_lock)
+                ''')
+
         elif backend == 'opencl':
             from pyopencl._cluda import CLUDA_PREAMBLE
             self._cgen = OpenCLConverter()
@@ -260,9 +269,10 @@ class Transpiler(object):
         self._handle_external(obj, declarations=declarations)
 
         if self.backend == 'cython':
+            is_serial = getattr(obj, 'is_serial', False)
             self._cgen.parse(
                 obj, declarations=declarations.get(obj.__name__)
-                if declarations else None)
+                if declarations else None, is_serial=is_serial)
             code = self._cgen.get_code()
         elif self.backend == 'opencl' or self.backend == 'cuda':
             code = self._cgen.parse(

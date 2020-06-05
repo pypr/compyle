@@ -375,6 +375,20 @@ def drop_duplicates(arr):
     return result
 
 
+def serial(func=None, **kw):
+    """Decorator to specify serial execution of a cython
+    function
+    """
+    def wrapper(func):
+        func.is_serial = True
+        return func
+
+    if func is None:
+        return wrapper
+    else:
+        return wrapper(func)
+
+
 class ElementwiseBase(object):
     def __init__(self, func, backend=None):
         backend = array.get_backend(backend)
@@ -402,7 +416,8 @@ class ElementwiseBase(object):
                 c_args=', '.join(c_data[1]),
                 py_arg_sig=', '.join(py_defn),
                 py_args=', '.join(py_args),
-                openmp=self._config.use_openmp,
+                openmp=self._config.use_openmp and not getattr(
+                    self.func, 'is_serial', False),
                 get_parallel_range=get_parallel_range
             )
             self.tp.add_code(src)
@@ -786,6 +801,9 @@ class ScanBase(object):
         self.queue = None
         self.c_func = self._generate()
 
+    def _get_backend_key(self):
+        return (self.backend, self._config.use_openmp, self._config.use_double)
+
     def _correct_return_type(self, c_data, modifier):
         code = self.tp.blocks[-1].code.splitlines()
         if self._config.use_openmp:
@@ -840,10 +858,11 @@ class ScanBase(object):
         input_expr = 'input[i]'
         return py_data, c_data, input_expr
 
-    def _wrap_cython_code(self, func, func_type=None):
+    def _wrap_cython_code(self, func, func_type=None,
+                          declarations=None):
         name = self.name
         if func is not None:
-            self.tp.add(func)
+            self.tp.add(func, declarations=declarations)
             py_data, c_data = self.cython_gen.get_func_signature(func)
             self._correct_return_type(c_data, func_type)
 
@@ -873,15 +892,18 @@ class ScanBase(object):
         all_c_data = [[], []]
 
         # Process input function
-        py_data, c_data, input_expr = self._wrap_cython_code(self.input_func,
-                                                             func_type='input')
+        py_data, c_data, input_expr = self._wrap_cython_code(
+            self.input_func,
+            func_type='input',
+            declarations=declarations
+        )
         self._append_cython_arg_data(all_py_data, all_c_data,
                                      py_data, c_data)
 
         # Process segment function
         use_segment = True if self.is_segment_func is not None else False
         py_data, c_data, segment_expr = self._wrap_cython_code(
-            self.is_segment_func, func_type='segment')
+            self.is_segment_func, func_type='segment', declarations=declarations)
         self._append_cython_arg_data(all_py_data, all_c_data, py_data, c_data)
 
         # Process output expression
@@ -889,7 +911,8 @@ class ScanBase(object):
         calc_prev_item = False
 
         py_data, c_data, output_expr = self._wrap_cython_code(
-            self.output_func, func_type='output')
+            self.output_func, func_type='output',
+            declarations=declarations)
         if self.output_func is not None:
             calc_last_item = self._include_last_item()
             calc_prev_item = self._include_prev_item()
@@ -907,7 +930,9 @@ class ScanBase(object):
         py_args = drop_duplicates(py_args)
         c_args = drop_duplicates(c_args)
 
-        self.output_func.arg_keys = c_args
+        if not hasattr(self.output_func, 'arg_keys'):
+            self.output_func.arg_keys = {}
+        self.output_func.arg_keys[self._get_backend_key()] = c_args
 
         if self._config.use_openmp:
             template = Template(text=scan_cy_template)
@@ -992,7 +1017,9 @@ class ScanBase(object):
 
         c_args = input_c_args + segment_c_args + output_c_args
         c_args = drop_duplicates(c_args)
-        self.output_func.arg_keys = c_args
+        if not hasattr(self.output_func, 'arg_keys'):
+            self.output_func.arg_keys = {}
+        self.output_func.arg_keys[self._get_backend_key()] = c_args
 
         return scan_expr, arg_defn, input_expr, output_expr, \
             segment_expr, preamble
@@ -1076,18 +1103,19 @@ class ScanBase(object):
 
     def __call__(self, **kwargs):
         c_args_dict = {k: self._massage_arg(x) for k, x in kwargs.items()}
+        output_arg_keys = self.output_func.arg_keys[self._get_backend_key()]
 
         if self.backend == 'cython':
-            size = len(c_args_dict[self.output_func.arg_keys[1]])
+            size = len(c_args_dict[output_arg_keys[1]])
             c_args_dict['SIZE'] = size
-            self.c_func(*[c_args_dict[k] for k in self.output_func.arg_keys])
+            self.c_func(*[c_args_dict[k] for k in output_arg_keys])
         elif self.backend == 'opencl':
-            self.c_func(*[c_args_dict[k] for k in self.output_func.arg_keys])
+            self.c_func(*[c_args_dict[k] for k in output_arg_keys])
             self.queue.finish()
         elif self.backend == 'cuda':
             import pycuda.driver as drv
             event = drv.Event()
-            self.c_func(*[c_args_dict[k] for k in self.output_func.arg_keys])
+            self.c_func(*[c_args_dict[k] for k in output_arg_keys])
             event.record()
             event.synchronize()
 
@@ -1096,6 +1124,7 @@ class Scan(object):
     def __init__(self, input=None, output=None, scan_expr="a+b",
                  is_segment=None, dtype=np.float64, neutral='0',
                  complex_map=False, backend=None):
+        # FIXME: Revisit these conditions
         input_base = input is None or \
             getattr(input, '__annotations__', None) and \
             not hasattr(input, 'is_jit')

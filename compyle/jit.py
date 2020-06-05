@@ -225,7 +225,11 @@ class AnnotationHelper(ast.NodeVisitor):
                     self.error("Cast type should be a string.", node)
                 type = right.args[1].s
                 if isinstance(left, ast.Name):
-                    self.var_types[left.id] = self.get_type(type)
+                    self.undecl_var_types[left.id] = self.get_type(type)
+            elif right.func.id == 'atomic_inc':
+                if left.id not in self.var_types and \
+                        left.id not in self.undecl_var_types:
+                    self.undecl_var_types[left.id] = self.visit(right.args[0])
             elif isinstance(left, ast.Name):
                 if left.id not in self.var_types and \
                         left.id not in self.undecl_var_types:
@@ -512,17 +516,18 @@ class ScanJIT(parallel.ScanBase):
     def __call__(self, **kwargs):
         c_func = self._generate_kernel(**kwargs)
         c_args_dict = {k: self._massage_arg(x) for k, x in kwargs.items()}
+        output_arg_keys = self.output_func.arg_keys[self._get_backend_key()]
 
         if self.backend == 'cython':
-            size = len(c_args_dict[self.output_func.arg_keys[1]])
+            size = len(c_args_dict[output_arg_keys[1]])
             c_args_dict['SIZE'] = size
-            c_func(*[c_args_dict[k] for k in self.output_func.arg_keys])
+            c_func(*[c_args_dict[k] for k in output_arg_keys])
         elif self.backend == 'opencl':
-            c_func(*[c_args_dict[k] for k in self.output_func.arg_keys])
+            c_func(*[c_args_dict[k] for k in output_arg_keys])
             self.queue.finish()
         elif self.backend == 'cuda':
             import pycuda.driver as drv
             event = drv.Event()
-            c_func(*[c_args_dict[k] for k in self.output_func.arg_keys])
+            c_func(*[c_args_dict[k] for k in output_arg_keys])
             event.record()
             event.synchronize()

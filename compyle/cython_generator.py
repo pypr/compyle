@@ -202,10 +202,11 @@ class CythonGenerator(object):
     def get_code(self):
         return self.code
 
-    def parse(self, obj, declarations=None):
+    def parse(self, obj, declarations=None, is_serial=False):
         obj_type = type(obj)
         if isinstance(obj, types.FunctionType):
-            self._parse_function(obj, declarations=declarations)
+            self._parse_function(obj, declarations=declarations,
+                                 is_serial=is_serial)
         elif hasattr(obj, '__class__'):
             self._parse_instance(obj)
         else:
@@ -354,16 +355,22 @@ class CythonGenerator(object):
 
         return methods
 
-    def _get_method_body(self, meth, lines, indent=' ' * 8, declarations=None):
+    def _get_method_body(self, meth, lines, indent=' ' * 8, declarations=None,
+                         is_serial=False):
         getfullargspec = getattr(
             inspect, 'getfullargspec', inspect.getargspec
         )
         args = set(getfullargspec(meth).args)
-        src = [self._process_body_line(line) for line in lines]
+        src = [self._process_body_line(line, is_serial=is_serial)
+               for line in lines]
         if declarations:
             cy_decls = []
             for var, decl in declarations.items():
-                cy_decls.append((var, indent + 'cdef %s\n' % decl[:-1]))
+                dtype, name = decl[:-1].split(' ')
+                if dtype[0] == 'u':
+                    dtype = 'unsigned %s' % dtype[1:]
+                modified_decl = '%s %s' % (dtype, name)
+                cy_decls.append((var, indent + 'cdef %s\n' % modified_decl))
             src = cy_decls + src
         declared = [] if not declarations else list(declarations.keys())
         for names, defn in src:
@@ -378,13 +385,15 @@ class CythonGenerator(object):
         code = ''.join(declare) + cython_body
         return code
 
-    def _get_method_wrapper(self, meth, indent=' ' * 8, declarations=None):
+    def _get_method_wrapper(self, meth, indent=' ' * 8, declarations=None,
+                            is_serial=False):
         sourcelines = getsourcelines(meth)[0]
         defn, lines = get_func_definition(sourcelines)
         m_name, returns, args = self._analyze_method(meth, lines)
         c_defn = self._get_c_method_spec(m_name, returns, args)
         c_body = self._get_method_body(meth, lines, indent=indent,
-                                       declarations=declarations)
+                                       declarations=declarations,
+                                       is_serial=is_serial)
         self.code = '{defn}\n{body}'.format(defn=c_defn, body=c_body)
         if self.python_methods:
             defn, body = self._get_py_method_spec(m_name, returns, args,
@@ -466,9 +475,20 @@ class CythonGenerator(object):
         ctype = call_args[1].strip()[1:-1]
         return '%s = <%s> (%s)' % (name, ctype, expr)
 
-    def _parse_function(self, obj, declarations=None):
+    def _handle_atomic_statement(self, name, call, is_serial):
+        # FIXME: This won't handle casting to pointers
+        # using something like 'intp'
+        call_arg = call[11:-1].strip()
+        if self._config.use_openmp and not is_serial:
+            return['openmp.omp_set_lock(&cy_lock)', '%s = %s' % (name, call_arg),
+                   '%s += 1' % call_arg, 'openmp.omp_unset_lock(&cy_lock)']
+        else:
+            return ['%s = %s' % (name, call_arg), '%s += 1' % call_arg]
+
+    def _parse_function(self, obj, declarations=None, is_serial=False):
         c_code, py_code = self._get_method_wrapper(obj, indent=' ' * 4,
-                                                   declarations=declarations)
+                                                   declarations=declarations,
+                                                   is_serial=is_serial)
         code = '{defn}\n{body}'.format(defn=c_code[0], body=c_code[1])
         if self.python_methods:
             code += '\n'
@@ -484,7 +504,7 @@ class CythonGenerator(object):
                                    methods=methods)
         self.code = helper.generate()
 
-    def _process_body_line(self, line):
+    def _process_body_line(self, line, is_serial=False):
         """Returns the name defined and the processed line itself.
 
         This hack primarily lets us declare variables from Python and inject
@@ -506,6 +526,16 @@ class CythonGenerator(object):
                 stmt = self._handle_cast_statement(name, call)
                 indent = line[:line.index(name)]
                 return '', indent + stmt + '\n'
+            elif words[1].startswith('atomic_inc') and \
+                    not line.strip().startswith('#'):
+                name = words[0]
+                call = words[1]
+                indent = line[:line.index(name)]
+                stmts = self._handle_atomic_statement(name, call, is_serial)
+                result = ''
+                for stmt in stmts:
+                    result += indent + stmt + '\n'
+                return '', result + '\n'
             else:
                 return '', line
         else:
