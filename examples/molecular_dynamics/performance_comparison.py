@@ -70,7 +70,7 @@ def plot(n_list, speedups, t_list):
 
 
 if __name__ == "__main__":
-    backends = ["opencl", "cuda"]
+    backends = ["cython", "cython_omp"]
     n_list = [10000, 40000, 160000, 640000, 2560000, 10240000, 40960000]
     speedups, t_list = compare(backends, n_list)
     plot(n_list, speedups, t_list)
