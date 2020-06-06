@@ -95,6 +95,14 @@ class ParallelUtilsBase(object):
         with use_config(use_openmp=True):
             self._test_scan(backend='cython')
 
+    def test_large_scan_works_cython_parallel(self):
+        with use_config(use_openmp=True):
+            self._test_large_scan(backend='cython')
+
+    def test_large_scan_works_cython_parallel(self):
+        with use_config(use_openmp=True):
+            self._test_large_scan(backend='cython')
+
     def test_scan_works_opencl(self):
         importorskip('pyopencl')
         self._test_scan(backend='opencl')
@@ -290,6 +298,33 @@ class TestParallelUtils(ParallelUtilsBase, unittest.TestCase):
     def _test_scan(self, backend):
         # Given
         a = np.arange(10000, dtype=np.int32)
+        data = a.copy()
+        expect = np.cumsum(data)
+
+        a = wrap(a, backend=backend)
+
+        @annotate(i='int', ary='intp', return_='int')
+        def input_f(i, ary):
+            return ary[i]
+
+        @annotate(int='i, item', ary='intp')
+        def output_f(i, item, ary):
+            ary[i] = item
+
+        # When
+        scan = Scan(input_f, output_f, 'a+b', dtype=np.int32,
+                    backend=backend)
+        scan(ary=a)
+
+        a.pull()
+        result = a.data
+
+        # Then
+        np.testing.assert_equal(expect, result)
+
+    def _test_large_scan(self, backend):
+        # Given
+        a = np.ones(3000000, dtype=np.int32)
         data = a.copy()
         expect = np.cumsum(data)
 
@@ -569,6 +604,33 @@ class TestParallelUtilsJIT(ParallelUtilsBase, unittest.TestCase):
     def _test_scan(self, backend):
         # Given
         a = np.arange(10000, dtype=np.int32)
+        data = a.copy()
+        expect = np.cumsum(data)
+
+        a = wrap(a, backend=backend)
+
+        @annotate
+        def input_f(i, ary):
+            return ary[i]
+
+        @annotate
+        def output_f(i, item, ary):
+            ary[i] = item
+
+        # When
+        scan = Scan(input_f, output_f, 'a+b', dtype=np.int32,
+                    backend=backend)
+        scan(ary=a)
+
+        a.pull()
+        result = a.data
+
+        # Then
+        np.testing.assert_equal(expect, result)
+
+    def _test_large_scan(self, backend):
+        # Given
+        a = np.ones(3000000, dtype=np.int32)
         data = a.copy()
         expect = np.cumsum(data)
 
