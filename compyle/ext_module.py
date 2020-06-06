@@ -10,6 +10,7 @@ import logging
 import numpy
 import os
 from os.path import exists, expanduser, isdir, join
+import platform
 from pyximport import pyxbuild
 import shutil
 import sys
@@ -122,7 +123,7 @@ class ExtModule(object):
         self.extra_link_args = extra_link_args if extra_link_args else []
 
     def _add_local_include(self):
-        if sys.platform != 'win32':
+        if 'bsd' in platform.system().lower():
             local = '/usr/local/include'
             if local not in self.extra_inc_dirs:
                 self.extra_inc_dirs.append(local)
