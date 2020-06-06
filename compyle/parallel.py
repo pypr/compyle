@@ -194,7 +194,7 @@ cdef void c_${name}(${c_arg_sig}):
             buffer_idx = tid * scan_stride
 
             start = offset + tid * chunksize
-            end = offset + min((tid + 1) * chunksize, SIZE)
+            end = min(offset + (tid + 1) * chunksize, SIZE)
             has_segment = 0
 
             temp = ${neutral}
@@ -281,7 +281,7 @@ cdef void c_${name}(${c_arg_sig}):
             carry = buffer[buffer_idx]
 
             start = offset + tid * chunksize
-            end = offset + min((tid + 1) * chunksize, SIZE)
+            end = min(offset + (tid + 1) * chunksize, SIZE)
 
             for i in range(start, end):
                 # Output

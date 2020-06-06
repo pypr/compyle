@@ -56,6 +56,7 @@ def compare_implementations(backend, n_list, niter=3):
     plt.xlabel("Number of particles")
     plt.ylabel("Time (secs)")
     plt.legend()
+    plt.grid(True)
     plt.savefig("time_comp_impl.png", dpi=300)
 
     plt.clf()
@@ -64,10 +65,11 @@ def compare_implementations(backend, n_list, niter=3):
 
     plt.xlabel("Number of particles")
     plt.ylabel("Speedup")
+    plt.grid(True)
     plt.savefig("speedup_comp_impl.png", dpi=300)
 
 
-def plot(n_list, speedups, t_list):
+def plot(n_list, speedups, t_list, label):
     backend_label_map = {'cython': 'Cython', 'cython_omp': 'OpenMP',
                          'opencl': 'OpenCL', 'cuda': 'CUDA'}
     import matplotlib.pyplot as plt
@@ -82,7 +84,8 @@ def plot(n_list, speedups, t_list):
         plt.xlabel("Number of particles")
         plt.ylabel("Speedup")
         plt.legend()
-        plt.savefig("speedup_%s.png" % "_".join(speedups.keys()), dpi=300)
+        plt.grid(True)
+        plt.savefig("%s_speedup_%s.png" % (label, "_".join(speedups.keys())), dpi=300)
 
     plt.clf()
 
@@ -92,19 +95,42 @@ def plot(n_list, speedups, t_list):
     plt.xlabel("Number of particles")
     plt.ylabel("Time (secs)")
     plt.legend()
-    plt.savefig("time_%s.png" % "_".join(t_list.keys()), dpi=300)
+    plt.grid(True)
+    plt.savefig("%s_time_%s.png" % (label, "_".join(t_list.keys())), dpi=300)
 
 
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) < 2:
-        backends = ["opencl"]
-        n_list = [10000, 40000, 160000, 640000, 2560000, 10240000, 40960000]
+    from argparse import ArgumentParser
+    p = ArgumentParser()
+    p.add_argument(
+        '-c', '--comparison', action='store', dest='comp', default='gpu_comp',
+        choices=['gpu_comp', 'omp_comp', 'comp_algo'],
+        help='Choose the comparison.'
+    )
+    p.add_argument(
+        '--nnps', action='store', dest='nnps', default='linear',
+        choices=['linear', 'simple'],
+        help='Choose algorithm.'
+    )
+
+    o = p.parse_args()
+
+    solver_algo = md_nnps.MDSolver if o.nnps == 'linear' else md_simple.MDSolver
+    n_list = [10000 * (4 ** i) for i in range(6)] if o.nnps == 'linear' else \
+            [500 * (4 ** i) for i in range(5)]
+
+    if o.comp == "gpu_comp":
+        backends = ["opencl", "cuda", "cython"]
         print("Running for", n_list)
-        speedups, t_list = compare(backends, n_list, md_nnps.MDSolver)
-        plot(n_list, speedups, t_list)
-    else:
+        speedups, t_list = compare(backends, n_list, solver_algo)
+        plot(n_list, speedups, t_list, o.nnps)
+    elif o.comp == "omp_comp":
+        backends = ["cython_omp", "cython"]
+        print("Running for", n_list)
+        speedups, t_list = compare(backends, n_list, solver_algo)
+        plot(n_list, speedups, t_list, o.nnps)
+    elif o.comp == "comp_algo":
         backend = "opencl"
-        n_list = [500, 2000, 8000, 32000, 128000, 512000]
+        n_list = [500, 1000, 2000, 4000, 8000, 16000, 32000]
         print("Running for", n_list)
         compare_implementations(backend, n_list)

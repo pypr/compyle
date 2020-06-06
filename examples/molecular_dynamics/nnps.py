@@ -146,14 +146,15 @@ class NNPSRadixSort(NNPS):
 if __name__ == "__main__":
     import sys
     backend = sys.argv[1] if len(sys.argv) > 1 else 'cython'
+    #get_config().use_openmp = True
     np.random.seed(123)
-    num_particles = 20
+    num_particles = 2560000
     x = np.random.uniform(0, 10., size=num_particles).astype(np.float32)
     y = np.random.uniform(0, 10., size=num_particles).astype(np.float32)
     x, y = wrap(x, y, backend=backend)
     nnps = NNPSRadixSort(x, y, 3., 10., 10., backend=backend)
     nnps.build()
     nnps.get_neighbors()
-    print(nnps.start_indices)
-    print(nnps.bin_counts)
-    print(nnps.nbr_lengths)
+    #print(carr.sum(nnps.start_indices))
+    #print(nnps.bin_counts)
+    print(carr.sum(nnps.nbr_lengths))
