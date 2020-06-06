@@ -1,6 +1,7 @@
 import numpy as np
 import time
-import md_simple, md_nnps
+import md_simple
+import md_nnps
 
 from compyle.config import get_config
 
@@ -33,7 +34,8 @@ def compare(backends, n_list, solver_algo, niter=3):
     if 'cython' in backends:
         for backend in backends:
             for i, n in enumerate(n_list):
-                speedups[backend].append(t_list["cython"][i] / t_list[backend][i])
+                speedups[backend].append(
+                    t_list["cython"][i] / t_list[backend][i])
     else:
         speedups = None
 
@@ -48,7 +50,7 @@ def compare_implementations(backend, n_list, niter=3):
                                md_simple.MDSolver, niter=niter)
 
     speedup = [simple_tlist[backend][i] / nnps_tlist[backend][i]
-            for i in range(len(n_list))]
+               for i in range(len(n_list))]
 
     plt.loglog(n_list, nnps_tlist[backend], 'x-', label="Linear")
     plt.loglog(n_list, simple_tlist[backend], 'x-', label="Simple")
@@ -85,7 +87,8 @@ def plot(n_list, speedups, t_list, label):
         plt.ylabel("Speedup")
         plt.legend()
         plt.grid(True)
-        plt.savefig("%s_speedup_%s.png" % (label, "_".join(speedups.keys())), dpi=300)
+        plt.savefig("%s_speedup_%s.png" %
+                    (label, "_".join(speedups.keys())), dpi=300)
 
     plt.clf()
 
@@ -117,7 +120,7 @@ if __name__ == "__main__":
 
     solver_algo = md_nnps.MDSolver if o.nnps == 'linear' else md_simple.MDSolver
     n_list = [10000 * (4 ** i) for i in range(6)] if o.nnps == 'linear' else \
-            [500 * (4 ** i) for i in range(5)]
+        [500 * (4 ** i) for i in range(5)]
 
     if o.comp == "gpu_comp":
         backends = ["opencl", "cuda", "cython"]
@@ -130,7 +133,7 @@ if __name__ == "__main__":
         speedups, t_list = compare(backends, n_list, solver_algo)
         plot(n_list, speedups, t_list, o.nnps)
     elif o.comp == "comp_algo":
-        backend = "opencl"
+        backend = "cython"
         n_list = [500, 1000, 2000, 4000, 8000, 16000, 32000]
         print("Running for", n_list)
         compare_implementations(backend, n_list)
