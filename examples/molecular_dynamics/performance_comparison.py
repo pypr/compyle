@@ -115,12 +115,17 @@ if __name__ == "__main__":
         choices=['linear', 'simple'],
         help='Choose algorithm.'
     )
+    p.add_argument(
+        '--use-double', action='store_true', dest='use_double',
+        default=False,  help='Use double precision on the GPU.'
+    )
 
     o = p.parse_args()
-
-    solver_algo = md_nnps.MDSolver if o.nnps == 'linear' else md_simple.MDSolver
-    n_list = [10000 * (4 ** i) for i in range(6)] if o.nnps == 'linear' else \
-        [500 * (4 ** i) for i in range(5)]
+    get_config().use_double = o.use_double
+    solver_algo = (md_nnps.MDSolver if o.nnps == 'linear'
+                   else md_simple.MDSolver)
+    n_list = [10000 * (2 ** i) for i in range(10)] if o.nnps == 'linear' else \
+        [500 * (2 ** i) for i in range(8)]
 
     if o.comp == "gpu_comp":
         backends = ["opencl", "cuda", "cython"]
