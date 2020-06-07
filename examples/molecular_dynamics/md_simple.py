@@ -120,8 +120,8 @@ class MDSolver(object):
 
     def setup_velocities(self, T, num_particles):
         np.random.seed(123)
-        vx = np.random.uniform(0, 1., size=num_particles).astype(np.float32)
-        vy = np.random.uniform(0, 1., size=num_particles).astype(np.float32)
+        vx = np.random.uniform(0, 1., size=num_particles).astype(np.float64)
+        vy = np.random.uniform(0, 1., size=num_particles).astype(np.float64)
         T_current = np.average(vx ** 2 + vy ** 2)
         scaling_factor = (T / T_current) ** 0.5
         vx = vx * scaling_factor
@@ -139,8 +139,8 @@ class MDSolver(object):
         xmax_eff = ((self.xmax - self.xmin) + dim_length) / 2.
 
         x, y = np.mgrid[xmin_eff:xmax_eff:dx, xmin_eff:xmax_eff:dx]
-        x = x.ravel().astype(np.float32)[:num_particles]
-        y = y.ravel().astype(np.float32)[:num_particles]
+        x = x.ravel().astype(np.float64)[:num_particles]
+        y = y.ravel().astype(np.float64)[:num_particles]
         return wrap(x, y, backend=self.backend)
 
     def post_step(self, t):
