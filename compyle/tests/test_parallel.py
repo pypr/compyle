@@ -169,6 +169,9 @@ class ParallelUtilsBase(object):
         with use_config(use_openmp=True):
             self._test_scan_last_item(backend='cython')
 
+    def test_scan_last_item_cython_serial(self):
+        self._test_scan_last_item(backend='cython')
+
     def test_scan_last_item_opencl(self):
         importorskip('pyopencl')
         self._test_scan_last_item(backend='opencl')

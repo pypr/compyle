@@ -6,6 +6,7 @@ from .config import get_config
 from .types import (annotate, dtype_to_ctype,
                     dtype_to_knowntype, knowntype_to_ctype)
 from .template import Template
+from .sort import radix_sort
 
 
 try:
@@ -455,9 +456,10 @@ def get_allocator(queue):
 
 
 def sort_by_keys(ary_list, out_list=None, key_bits=None,
-                 backend=None):
-    # FIXME: Need to use returned values, using out_list
-    # doesn't work
+                 backend=None, use_radix_sort=False):
+    # FIXME: Need to use returned values, cuda backend uses
+    # thrust that will internally allocate a new array for storing
+    # the sorted data so out_list will not have the sorted arrays
     # first arg of ary_list is the key
     if backend is None:
         backend = ary_list[0].backend
@@ -482,6 +484,15 @@ def sort_by_keys(ary_list, out_list=None, key_bits=None,
                                      allocator=allocator)
         for i, out in enumerate(out_list):
             out.set_data(out_arrays[i])
+        return out_list
+    elif backend == 'cython' and use_radix_sort:
+        out_list, order = radix_sort(ary_list, out_list=out_list,
+                                     max_key_bits=key_bits, backend=backend)
+        return out_list
+    elif backend == 'cython':
+        order = wrap(np.argsort(ary_list[0].dev), backend=backend)
+        out_list = align(ary_list, order, out_list=out_list,
+                         backend=backend)
         return out_list
     else:
         order = argsort(ary_list[0], backend=backend)
