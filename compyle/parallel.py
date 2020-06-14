@@ -326,7 +326,6 @@ cpdef py_${name}(${py_arg_sig}):
     return c_${name}(${py_args})
 '''
 
-# No support for last_item in single thread
 scan_cy_single_thread_template = '''
 from cython.parallel import parallel, prange, threadid
 from libc.stdlib cimport abort, malloc, free
@@ -337,6 +336,14 @@ cdef void c_${name}(${c_arg_sig}):
     cdef int i, N, across_seg_boundary
     cdef ${type} a, b, item
     N = SIZE
+
+    % if calc_last_item:
+    a = ${neutral}
+    for i in range(N):
+        b = ${input_expr}
+        a = ${scan_expr}
+    last_item = a
+    % endif
 
     a = ${neutral}
 

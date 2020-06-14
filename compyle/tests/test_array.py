@@ -2,11 +2,12 @@ import pytest
 import numpy as np
 
 from ..array import Array
+from ..config import get_config
 import compyle.array as array
 
 
 check_all_backends = pytest.mark.parametrize('backend',
-                                            ['cython', 'opencl', 'cuda'])
+                                             ['cython', 'opencl', 'cuda'])
 
 
 def make_dev_array(backend, n=16):
@@ -253,13 +254,67 @@ def test_sort_by_keys(backend):
     check_import(backend)
 
     # Given
-    dev_array = make_dev_array(backend)
+    nparr1 = np.random.randint(0, 100, 16, dtype=np.int32)
+    nparr2 = np.random.randint(0, 100, 16, dtype=np.int32)
+    dev_array1, dev_array2 = array.wrap(nparr1, nparr2, backend=backend)
 
     # When
-    out_array = array.sort_by_keys([dev_array])[0]
+    out_array1, out_array2 = array.sort_by_keys([dev_array1, dev_array2])
 
     # Then
-    assert np.all(out_array.get() == np.sort(dev_array.get()))
+    order = np.argsort(nparr1)
+    act_result1 = np.take(nparr1, order)
+    act_result2 = np.take(nparr2, order)
+    assert np.all(out_array1.get() == act_result1)
+    assert np.all(out_array2.get() == act_result2)
+
+
+def test_radix_sort_by_keys():
+    backend = 'cython'
+    for use_openmp in [True, False]:
+        get_config().use_openmp = use_openmp
+        # Given
+        nparr1 = np.random.randint(0, 100, 16, dtype=np.int32)
+        nparr2 = np.random.randint(0, 100, 16, dtype=np.int32)
+        dev_array1, dev_array2 = array.wrap(nparr1, nparr2, backend=backend)
+
+        # When
+        out_array1, out_array2 = array.sort_by_keys([dev_array1, dev_array2],
+                                                    use_radix_sort=True)
+
+        # Then
+        order = np.argsort(nparr1)
+        act_result1 = np.take(nparr1, order)
+        act_result2 = np.take(nparr2, order)
+        assert np.all(out_array1.get() == act_result1)
+        assert np.all(out_array2.get() == act_result2)
+    get_config().use_openmp = False
+
+
+@pytest.mark.parametrize(
+    'backend', ['cython', 'opencl',
+                pytest.param('cuda', marks=pytest.mark.xfail)])
+def test_sort_by_keys_with_output(backend):
+    check_import(backend)
+
+    # Given
+    nparr1 = np.random.randint(0, 100, 16, dtype=np.int32)
+    nparr2 = np.random.randint(0, 100, 16, dtype=np.int32)
+    dev_array1, dev_array2 = array.wrap(nparr1, nparr2, backend=backend)
+    out_arrays = [
+        array.zeros_like(dev_array1),
+        array.zeros_like(dev_array2)]
+
+    # When
+    array.sort_by_keys([dev_array1, dev_array2],
+                       out_list=out_arrays, use_radix_sort=False)
+
+    # Then
+    order = np.argsort(nparr1)
+    act_result1 = np.take(nparr1, order)
+    act_result2 = np.take(nparr2, order)
+    assert np.all(out_arrays[0].get() == act_result1)
+    assert np.all(out_arrays[1].get() == act_result2)
 
 
 @check_all_backends
