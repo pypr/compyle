@@ -20,7 +20,7 @@ using Cython, and OpenCL and CUDA for GPU devices.
 
 Users start with code implemented in a very restricted Python syntax, this code
 is then automatically transpiled, compiled and executed to run on either one CPU
-core, or multiple CPU cores (via OpenMP_) or on a GPU. CPy offers
+core, or multiple CPU cores (via OpenMP_) or on a GPU. ComPyle offers
 source-to-source transpilation, making it a very convenient tool for writing HPC
 libraries.
 
