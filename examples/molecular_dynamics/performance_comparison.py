@@ -122,7 +122,7 @@ if __name__ == "__main__":
 
     o = p.parse_args()
     get_config().use_double = o.use_double
-    solver_algo = (md_nnps.MDSolver if o.nnps == 'linear'
+    solver_algo = (md_nnps.MDNNPSSolver if o.nnps == 'linear'
                    else md_simple.MDSolver)
     n_list = [10000 * (2 ** i) for i in range(10)] if o.nnps == 'linear' else \
         [500 * (2 ** i) for i in range(8)]

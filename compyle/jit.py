@@ -167,7 +167,7 @@ class AnnotationHelper(ast.NodeVisitor):
         # make this work
         mod = importlib.import_module(self.func.__module__)
         f = getattr(mod, node.func.id, None)
-        if not hasattr(f, 'is_jit'):
+        if node.func.id not in BUILTINS and not hasattr(f, 'is_jit'):
             return None
         if node.func.id in self.external_funcs:
             return self.external_funcs[node.func.id].arg_types.get(
