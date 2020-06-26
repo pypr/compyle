@@ -14,7 +14,7 @@ from md_simple import calculate_energy, integrate_step1, integrate_step2, \
 
 
 @annotate
-def calculate_force(i, x, y, fx, fy, pe, nbr_starts, nbr_lengths, nbrs):
+def calculate_force(i, x, y, z, fx, fy, fz, pe, nbr_starts, nbr_lengths, nbrs):
     start_idx = nbr_starts[i]
     length = nbr_lengths[i]
     for k in range(start_idx, start_idx + length):
@@ -23,7 +23,8 @@ def calculate_force(i, x, y, fx, fy, pe, nbr_starts, nbr_lengths, nbrs):
             continue
         xij = x[i] - x[j]
         yij = y[i] - y[j]
-        rij2 = xij * xij + yij * yij
+        zij = z[i] - z[j]
+        rij2 = xij * xij + yij * yij + zij * zij
         irij2 = 1.0 / rij2
         irij6 = irij2 * irij2 * irij2
         irij12 = irij6 * irij6
@@ -32,70 +33,79 @@ def calculate_force(i, x, y, fx, fy, pe, nbr_starts, nbr_lengths, nbrs):
 
         fx[i] += f_base * xij
         fy[i] += f_base * yij
+        fz[i] += f_base * zij
 
 
 @annotate
-def step_method1(i, x, y, vx, vy, fx, fy, pe, xmin, xmax,
-                 ymin, ymax, m, dt, nbr_starts, nbr_lengths,
+def step_method1(i, x, y, z, vx, vy, vz, fx, fy, fz, pe, xmin, xmax,
+                 ymin, ymax, zmin, zmax, m, dt, nbr_starts, nbr_lengths,
                  nbrs):
-    integrate_step1(i, m, dt, x, y, vx, vy, fx, fy)
-    boundary_condition(i, x, y, vx, vy, fx, fy, pe, xmin, xmax,
-                       ymin, ymax)
+    integrate_step1(i, m, dt, x, y, z, vx, vy, vz, fx, fy, fz)
+    boundary_condition(i, x, y, z, vx, vy, vz, fx, fy, fz, pe, xmin, xmax,
+                       ymin, ymax, zmin, zmax)
 
 
 @annotate
-def step_method2(i, x, y, vx, vy, fx, fy, pe, xmin, xmax,
-                 ymin, ymax, m, dt, nbr_starts, nbr_lengths,
+def step_method2(i, x, y, z, vx, vy, vz, fx, fy, fz, pe, xmin, xmax,
+                 ymin, ymax, zmin, zmax, m, dt, nbr_starts, nbr_lengths,
                  nbrs):
-    calculate_force(i, x, y, fx, fy, pe, nbr_starts, nbr_lengths, nbrs)
-    integrate_step2(i, m, dt, x, y, vx, vy, fx, fy)
+    calculate_force(i, x, y, z, fx, fy, fz, pe, nbr_starts, nbr_lengths, nbrs)
+    integrate_step2(i, m, dt, x, y, z, vx, vy, vz, fx, fy, fz)
 
 
 class MDNNPSSolver(MDSolver):
-    def __init__(self, num_particles, x=None, y=None, vx=None, vy=None,
-                 xmax=100., ymax=100., dx=1.5, init_T=0.,
+    def __init__(self, num_particles, x=None, y=None, z=None,
+                 vx=None, vy=None, vz=None,
+                 xmax=100., ymax=100., zmax=100., dx=2., init_T=0.,
                  backend=None, use_count_sort=False):
-        self.backend = backend
+        self.nnps_algorithm = NNPSCountingSort \
+            if use_count_sort else NNPSRadixSort
+        self.backend = get_backend(backend)
         self.num_particles = num_particles
         self.xmin, self.xmax = 0., xmax
         self.ymin, self.ymax = 0., ymax
+        self.zmin, self.zmax = 0., zmax
         self.m = 1.
-        if x is None and y is None:
-            self.x, self.y = self.setup_positions(num_particles, dx)
-        if vx is None and vy is None:
-            self.vx, self.vy = self.setup_velocities(init_T, num_particles)
+        if x is None and y is None and z is None:
+            self.x, self.y, self.z = self.setup_positions(num_particles, dx)
+        if vx is None and vy is None and vz is None:
+            self.vx, self.vy, self.vz = self.setup_velocities(
+                init_T, num_particles)
         self.fx = carr.zeros_like(self.x, backend=self.backend)
-        self.fy = carr.zeros_like(self.x, backend=self.backend)
+        self.fy = carr.zeros_like(self.y, backend=self.backend)
+        self.fz = carr.zeros_like(self.z, backend=self.backend)
         self.pe = carr.zeros_like(self.x, backend=self.backend)
+        self.nnps = self.nnps_algorithm(self.x, self.y, self.z, 3., self.xmax,
+                                        self.ymax, self.zmax,
+                                        backend=self.backend)
         self.init_forces = Elementwise(calculate_force, backend=self.backend)
         self.step1 = Elementwise(step_method1, backend=self.backend)
         self.step2 = Elementwise(step_method2, backend=self.backend)
         self.energy_calc = Reduction("a+b", map_func=calculate_energy,
                                      backend=self.backend)
-        self.nnps_algorithm = NNPSCountingSort \
-            if use_count_sort else NNPSRadixSort
-        self.nnps = self.nnps_algorithm(self.x, self.y, 3., self.xmax,
-                                        self.ymax, backend=self.backend)
 
     def solve(self, t, dt):
         num_steps = int(t // dt)
         curr_t = 0.
         self.nnps.build()
         self.nnps.get_neighbors()
-        self.init_forces(self.x, self.y, self.fx, self.fy,
+        self.init_forces(self.x, self.y, self.z, self.fx, self.fy, self.fz,
                          self.pe, self.nnps.nbr_starts,
                          self.nnps.nbr_lengths, self.nnps.nbrs)
         for i in range(num_steps):
-            self.step1(self.x, self.y, self.vx, self.vy, self.fx,
-                       self.fy, self.pe, self.xmin, self.xmax, self.ymin,
-                       self.ymax, self.m, dt, self.nnps.nbr_starts,
+            self.step1(self.x, self.y, self.z, self.vx, self.vy, self.vz,
+                       self.fx, self.fy, self.fz,
+                       self.pe, self.xmin, self.xmax, self.ymin, self.ymax,
+                       self.zmin, self.zmax, self.m, dt, self.nnps.nbr_starts,
                        self.nnps.nbr_lengths, self.nnps.nbrs)
             self.nnps.build()
             self.nnps.get_neighbors()
-            self.step2(self.x, self.y, self.vx, self.vy, self.fx,
-                       self.fy, self.pe, self.xmin, self.xmax, self.ymin,
-                       self.ymax, self.m, dt, self.nnps.nbr_starts,
+            self.step2(self.x, self.y, self.z, self.vx, self.vy, self.vz,
+                       self.fx, self.fy, self.fz,
+                       self.pe, self.xmin, self.xmax, self.ymin, self.ymax,
+                       self.zmin, self.zmax, self.m, dt, self.nnps.nbr_starts,
                        self.nnps.nbr_lengths, self.nnps.nbrs)
+
             curr_t += dt
             if i % 100 == 0:
                 self.post_step(curr_t)
@@ -120,6 +130,10 @@ if __name__ == '__main__':
         '--use-count-sort', action='store_true', dest='use_count_sort',
         default=False, help='Use count sort instead of radix sort'
     )
+    p.add_argument(
+        '--show', action='store_true', dest='show',
+        default=False, help='Show plot'
+    )
 
     p.add_argument('-n', action='store', type=int, dest='n',
                    default=100, help='Number of particles')
@@ -143,5 +157,6 @@ if __name__ == '__main__':
     solver.solve(o.t, o.dt)
     end = time.time()
     print("Time taken for N = %i is %g secs" % (o.n, (end - start)))
-    solver.pull()
-    solver.plot()
+    if o.show:
+        solver.pull()
+        solver.plot()
