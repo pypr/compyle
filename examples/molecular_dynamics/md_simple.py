@@ -173,7 +173,7 @@ class MDSolver(object):
         plt.xlim(self.xmin, self.xmax)
         plt.ylim(self.ymin, self.ymax)
         plt.scatter(self.x.data, self.y.data, 4.2)
-        plt.savefig("sim.png", dpi=300)
+        plt.show()
 
 
 if __name__ == '__main__':
@@ -190,6 +190,10 @@ if __name__ == '__main__':
     p.add_argument(
         '--use-double', action='store_true', dest='use_double',
         default=False, help='Use double precision on the GPU.'
+    )
+    p.add_argument(
+        '--show', action='store_true', dest='show',
+        default=False, help='Show plot at end of simulation'
     )
 
     p.add_argument('-n', action='store', type=int, dest='n',
@@ -211,5 +215,6 @@ if __name__ == '__main__':
     solver.solve(o.t, o.dt)
     end = time.time()
     print("Time taken for N = %i is %g secs" % (o.n, (end - start)))
-    solver.pull()
-    solver.plot()
+    if o.show:
+        solver.pull()
+        solver.plot()
