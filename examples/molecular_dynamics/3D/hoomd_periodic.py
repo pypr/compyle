@@ -25,7 +25,7 @@ def setup_positions(num_particles, dx):
     return x, y, z, xmax
 
 
-def simulate(num_particles, dt, tf, profile=False):
+def simulate(num_particles, dt, tf, profile=False, log=False):
     x, y, z, L = setup_positions(num_particles, 2.)
     positions = np.array((x, y, z)).T
     hoomd.context.initialize("")
@@ -46,6 +46,12 @@ def simulate(num_particles, dt, tf, profile=False):
     lj = hoomd.md.pair.lj(r_cut=3.0, nlist=nl)
     lj.pair_coeff.set('A', 'A', epsilon=1.0, sigma=1.0)
 
+    if log:
+        hoomd.analyze.log(filename="log-output.log",
+                          quantities=['potential_energy', 'kinetic_energy'],
+                          period=100,
+                          overwrite=True)
+
     # Create integrator and forces
     hoomd.md.integrate.mode_standard(dt=dt)
     hoomd.md.integrate.nve(group=hoomd.group.all())
@@ -59,4 +65,4 @@ def simulate(num_particles, dt, tf, profile=False):
 
 if __name__ == '__main__':
     import sys
-    print(simulate(int(sys.argv[1]), 0.02, 4., profile=True))
+    print(simulate(int(sys.argv[1]), 0.02, 200., profile=True, log=True))

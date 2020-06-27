@@ -31,7 +31,7 @@ def calculate_force(i, x, y, fx, fy, pe, num_particles):
         irij2 = 1.0 / rij2
         irij6 = irij2 * irij2 * irij2
         irij12 = irij6 * irij6
-        pe[i] += (4 * (irij12 - irij6))
+        pe[i] += (2 * (irij12 - irij6))
         f_base = 24 * irij2 * (2 * irij12 - irij6)
 
         fx[i] += f_base * xij
@@ -96,11 +96,11 @@ def boundary_condition(i, x, y, vx, vy, fx, fy, pe, xmin, xmax, ymin, ymax):
         fy[i] = 0.
 
 
-class MDSolver(object):
+class MDSolverBase(object):
     def __init__(self, num_particles, x=None, y=None, vx=None, vy=None,
                  xmax=100., ymax=100., dx=1.5, init_T=0.,
                  backend=None):
-        self.backend = backend
+        self.backend = get_backend(backend)
         self.num_particles = num_particles
         self.xmin, self.xmax = 0., xmax
         self.ymin, self.ymax = 0., ymax
@@ -112,9 +112,6 @@ class MDSolver(object):
         self.fx = carr.zeros_like(self.x, backend=self.backend)
         self.fy = carr.zeros_like(self.x, backend=self.backend)
         self.pe = carr.zeros_like(self.x, backend=self.backend)
-        self.init_forces = Elementwise(calculate_force, backend=self.backend)
-        self.step1 = Elementwise(step_method1, backend=self.backend)
-        self.step2 = Elementwise(step_method2, backend=self.backend)
         self.energy_calc = Reduction("a+b", map_func=calculate_energy,
                                      backend=self.backend)
 
@@ -143,26 +140,10 @@ class MDSolver(object):
         y = y.ravel().astype(np.float64)[:num_particles]
         return wrap(x, y, backend=self.backend)
 
-    def post_step(self, t):
+    def post_step(self, step):
         energy = self.energy_calc(self.vx, self.vy, self.pe,
                                   self.num_particles)
-        print("Energy at time =", t, "is", energy)
-
-    def solve(self, t, dt):
-        num_steps = int(t // dt)
-        curr_t = 0.
-        self.init_forces(self.x, self.y, self.fx, self.fy, self.pe,
-                         self.num_particles)
-        for i in range(num_steps):
-            self.step1(self.x, self.y, self.vx, self.vy, self.fx, self.fy,
-                       self.pe, self.xmin, self.xmax, self.ymin, self.ymax,
-                       self.m, dt, self.num_particles)
-            self.step2(self.x, self.y, self.vx, self.vy, self.fx, self.fy,
-                       self.pe, self.xmin, self.xmax, self.ymin, self.ymax,
-                       self.m, dt, self.num_particles)
-            curr_t += dt
-            if i % 100 == 0:
-                self.post_step(curr_t)
+        print("Energy at time step =", step, "is", energy)
 
     def pull(self):
         self.x.pull()
@@ -176,21 +157,35 @@ class MDSolver(object):
         plt.show()
 
 
+class MDSolver(MDSolverBase):
+    def __init__(self, num_particles, x=None, y=None, vx=None, vy=None,
+                 xmax=100., ymax=100., dx=1.5, init_T=0.,
+                 backend=None):
+        super().__init__(num_particles, x=x, y=y, vx=vx, vy=vy,
+                         xmax=xmax, ymax=ymax, dx=dx, init_T=init_T,
+                         backend=backend)
+        self.init_forces = Elementwise(calculate_force, backend=self.backend)
+        self.step1 = Elementwise(step_method1, backend=self.backend)
+        self.step2 = Elementwise(step_method2, backend=self.backend)
+
+    def solve(self, t, dt):
+        num_steps = int(t // dt)
+        self.init_forces(self.x, self.y, self.fx, self.fy, self.pe,
+                         self.num_particles)
+        for i in range(num_steps):
+            self.step1(self.x, self.y, self.vx, self.vy, self.fx, self.fy,
+                       self.pe, self.xmin, self.xmax, self.ymin, self.ymax,
+                       self.m, dt, self.num_particles)
+            self.step2(self.x, self.y, self.vx, self.vy, self.fx, self.fy,
+                       self.pe, self.xmin, self.xmax, self.ymin, self.ymax,
+                       self.m, dt, self.num_particles)
+            if i % 100 == 0:
+                self.post_step(i)
+
+
 if __name__ == '__main__':
-    from argparse import ArgumentParser
+    from compyle.utils import ArgumentParser
     p = ArgumentParser()
-    p.add_argument(
-        '-b', '--backend', action='store', dest='backend', default='cython',
-        help='Choose the backend.'
-    )
-    p.add_argument(
-        '--openmp', action='store_true', dest='openmp', default=False,
-        help='Use OpenMP.'
-    )
-    p.add_argument(
-        '--use-double', action='store_true', dest='use_double',
-        default=False, help='Use double precision on the GPU.'
-    )
     p.add_argument(
         '--show', action='store_true', dest='show',
         default=False, help='Show plot at end of simulation'
