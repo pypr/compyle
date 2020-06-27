@@ -280,9 +280,7 @@ class AnnotationHelper(ast.NodeVisitor):
             else:
                 self.arg_types['return_'] = 'double'
         else:
-            if not node.value:
-                self.warn("Not returning anything", node)
-            else:
+            if node.value:
                 self.warn("Unknown type for return value. "
                           "Return value defaulting to 'double'", node)
                 self.arg_types['return_'] = 'double'
