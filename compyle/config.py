@@ -17,6 +17,20 @@ class Config(object):
         self._profile = None
         self._use_local_memory = None
         self._wgs = None
+        self._suppress_warnings = None
+
+    @property
+    def suppress_warnings(self):
+        if self._suppress_warnings is None:
+            self._suppress_warnings = self._suppress_warnings_default()
+        return self._suppress_warnings
+
+    @suppress_warnings.setter
+    def suppress_warnings(self, value):
+        self._suppress_warnings = value
+
+    def _suppress_warnings_default(self):
+        return False
 
     @property
     def use_openmp(self):

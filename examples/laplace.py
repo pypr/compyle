@@ -103,20 +103,8 @@ class LaplaceSolver(object):
 
 
 if __name__ == '__main__':
-    from argparse import ArgumentParser
+    from compyle.utils import ArgumentParser
     p = ArgumentParser()
-    p.add_argument(
-        '-b', '--backend', action='store', dest='backend', default='cython',
-        help='Choose the backend.'
-    )
-    p.add_argument(
-        '--openmp', action='store_true', dest='openmp', default=False,
-        help='Use OpenMP.'
-    )
-    p.add_argument(
-        '--use-double', action='store_true', dest='use_double',
-        default=False, help='Use double precision on the GPU.'
-    )
     p.add_argument('--nx', action='store', type=int, dest='nx',
                    default=100, help='Number of grid points in x.')
     p.add_argument('--ny', action='store', type=int, dest='ny',
@@ -126,8 +114,6 @@ if __name__ == '__main__':
         default=False, help='Show plot at the end of simulation'
     )
     o = p.parse_args()
-    get_config().use_openmp = o.openmp
-    get_config().use_double = o.use_double
 
     grid = Grid(nx=o.nx, ny=o.ny, bc=bc, backend=o.backend)
 

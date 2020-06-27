@@ -201,8 +201,6 @@ if __name__ == '__main__':
                    default=0.02, help='Time step')
 
     o = p.parse_args()
-    get_config().use_openmp = o.openmp
-    get_config().use_double = o.use_double
 
     solver = MDSolver(o.n, backend=o.backend)
 

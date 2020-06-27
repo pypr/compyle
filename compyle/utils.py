@@ -1,5 +1,6 @@
 import inspect
 import argparse
+from compyle.config import get_config
 
 
 def getsourcelines(obj):
@@ -37,6 +38,7 @@ class ArgumentParser(argparse.ArgumentParser):
         # setup standard arguments
         self.add_argument(
             '-b', '--backend', action='store', dest='backend', default='cython',
+            choices = ['cython', 'opencl', 'cuda'],
             help='Choose the backend.'
         )
         self.add_argument(
@@ -47,3 +49,27 @@ class ArgumentParser(argparse.ArgumentParser):
             '--use-double', action='store_true', dest='use_double',
             default=False, help='Use double precision on the GPU.'
         )
+        self.add_argument(
+            '--suppress-warnings', action='store_true',
+            dest='suppress_warnings',
+            default=False, help='Suppress warnings'
+        )
+
+    def _set_config_options(self, options):
+        get_config().use_openmp = options.openmp
+        get_config().use_double = options.use_double
+        get_config().suppress_warnings = options.suppress_warnings
+        if options.backend == 'opencl':
+            get_config().use_opencl = True
+        if options.backend == 'cuda':
+            get_config().use_cuda = True
+
+    def parse_args(self, *args, **kwargs):
+        options = super().parse_args(*args, **kwargs)
+        self._set_config_options(options)
+        return options
+
+    def parse_known_args(self, *args, **kwargs):
+        options, unknown = super().parse_known_args(*args, **kwargs)
+        self._set_config_options(options)
+        return options, unknown
