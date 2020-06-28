@@ -248,7 +248,7 @@ class Transpiler(object):
         syms, implicit, calls, externs = get_external_symbols_and_calls(
             func, self.backend
         )
-        if implicit:
+        if implicit and not get_config().suppress_warnings:
             msg = ('Warning: the following symbols are implicitly defined.\n'
                    '  %s\n'
                    'You may want to explicitly declare/define them.'

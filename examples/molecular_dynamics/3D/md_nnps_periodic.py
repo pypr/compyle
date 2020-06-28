@@ -10,8 +10,7 @@ from compyle.low_level import cast
 import compyle.array as carr
 
 from nnps import NNPSCountingSortPeriodic, NNPSRadixSortPeriodic
-from md_simple import calculate_energy, integrate_step1, \
-        integrate_step2, MDSolver
+from md_simple import integrate_step1, integrate_step2, MDSolverBase
 
 
 @annotate
@@ -39,7 +38,7 @@ def calculate_force(i, x, y, z, xmax, ymax, zmax, fx, fy, fz, pe,
         irij2 = 1.0 / rij2
         irij6 = irij2 * irij2 * irij2
         irij12 = irij6 * irij6
-        pe[i] += (4 * (irij12 - irij6))
+        pe[i] += (2 * (irij12 - irij6))
         f_base = 24 * irij2 * (2 * irij12 - irij6)
 
         fx[i] += f_base * xij
@@ -86,39 +85,25 @@ def boundary_condition(i, x, y, z, fx, fy, fz, pe, xmin, xmax, ymin, ymax,
     z[i] -= zoffset * zwidth
 
 
-class MDNNPSSolverPeriodic(MDSolver):
+class MDNNPSSolverPeriodic(MDSolverBase):
     def __init__(self, num_particles, x=None, y=None, z=None,
                  vx=None, vy=None, vz=None,
                  xmax=100., ymax=100., zmax=100., dx=2., init_T=0.,
                  backend=None, use_count_sort=False):
+        super().__init__(num_particles, x=x, y=y, z=z, vx=vx, vy=vy, vz=vz,
+                         xmax=xmax, ymax=ymax, zmax=zmax, dx=dx, init_T=init_T,
+                         backend=backend)
         self.nnps_algorithm = NNPSCountingSortPeriodic \
             if use_count_sort else NNPSRadixSortPeriodic
-        self.backend = get_backend(backend)
-        self.num_particles = num_particles
-        self.xmin, self.xmax = 0., xmax
-        self.ymin, self.ymax = 0., ymax
-        self.zmin, self.zmax = 0., zmax
-        self.m = 1.
-        if x is None and y is None and z is None:
-            self.x, self.y, self.z = self.setup_positions(num_particles, dx)
-        if vx is None and vy is None and vz is None:
-            self.vx, self.vy, self.vz = self.setup_velocities(
-                init_T, num_particles)
-        self.fx = carr.zeros_like(self.x, backend=self.backend)
-        self.fy = carr.zeros_like(self.y, backend=self.backend)
-        self.fz = carr.zeros_like(self.z, backend=self.backend)
-        self.pe = carr.zeros_like(self.x, backend=self.backend)
-        self.nnps = self.nnps_algorithm(self.x, self.y, self.z, 3., 0.01, self.xmax,
-                                        self.ymax, self.zmax, backend=self.backend)
+        self.nnps = self.nnps_algorithm(self.x, self.y, self.z, 3., 0.01,
+                                        self.xmax, self.ymax, self.zmax,
+                                        backend=self.backend)
         self.init_forces = Elementwise(calculate_force, backend=self.backend)
         self.step1 = Elementwise(step_method1, backend=self.backend)
         self.step2 = Elementwise(step_method2, backend=self.backend)
-        self.energy_calc = Reduction("a+b", map_func=calculate_energy,
-                                     backend=self.backend)
 
-    def solve(self, t, dt):
+    def solve(self, t, dt, log_output=False):
         num_steps = int(t // dt)
-        curr_t = 0.
         self.nnps.build()
         self.nnps.get_neighbors()
         self.init_forces(self.x, self.y, self.z, self.xmax, self.ymax,
@@ -139,26 +124,13 @@ class MDNNPSSolverPeriodic(MDSolver):
                        self.zmin, self.zmax, self.m, dt, self.nnps.nbr_starts,
                        self.nnps.nbr_lengths, self.nnps.nbrs)
 
-            curr_t += dt
             if i % 100 == 0:
-                self.post_step(curr_t)
+                self.post_step(i, log_output=log_output)
 
 
 if __name__ == '__main__':
-    from argparse import ArgumentParser
+    from compyle.utils import ArgumentParser
     p = ArgumentParser()
-    p.add_argument(
-        '-b', '--backend', action='store', dest='backend', default='cython',
-        help='Choose the backend.'
-    )
-    p.add_argument(
-        '--openmp', action='store_true', dest='openmp', default=False,
-        help='Use OpenMP.'
-    )
-    p.add_argument(
-        '--use-double', action='store_true', dest='use_double',
-        default=False, help='Use double precision on the GPU.'
-    )
     p.add_argument(
         '--use-count-sort', action='store_true', dest='use_count_sort',
         default=False, help='Use count sort instead of radix sort'
@@ -166,6 +138,10 @@ if __name__ == '__main__':
     p.add_argument(
         '--show', action='store_true', dest='show',
         default=False, help='Show plot'
+    )
+    p.add_argument(
+        '--log-output', action='store_true', dest='log_output',
+        default=False, help='Log output'
     )
 
     p.add_argument('-n', action='store', type=int, dest='n',
@@ -178,8 +154,6 @@ if __name__ == '__main__':
                    default=0.02, help='Time step')
 
     o = p.parse_args()
-    get_config().use_openmp = o.openmp
-    get_config().use_double = o.use_double
 
     solver = MDNNPSSolverPeriodic(
         o.n,
@@ -187,9 +161,11 @@ if __name__ == '__main__':
         use_count_sort=o.use_count_sort)
 
     start = time.time()
-    solver.solve(o.t, o.dt)
+    solver.solve(o.t, o.dt, o.log_output)
     end = time.time()
     print("Time taken for N = %i is %g secs" % (o.n, (end - start)))
+    if o.log_output:
+        solver.write_log('nnps_periodic.log')
     if o.show:
         solver.pull()
         solver.plot()

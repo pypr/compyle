@@ -6,6 +6,7 @@ from compyle.config import get_config
 from compyle.api import declare, annotate
 from compyle.parallel import Elementwise
 from compyle.array import get_backend, wrap
+from compyle.low_level import cast
 
 import compyle.array as carr
 
@@ -16,8 +17,8 @@ def bc(x, y):
 
 @annotate
 def laplace_step(i, u, res, err, nx, ny, dx2, dy2, dnr_inv):
-    xid = i % nx
-    yid = i / nx
+    xid = cast(i % nx, "int")
+    yid = cast(i / nx, "int")
 
     if xid == 0 or xid == nx - 1 or yid == 0 or yid == ny - 1:
         return
@@ -102,27 +103,17 @@ class LaplaceSolver(object):
 
 
 if __name__ == '__main__':
-    from argparse import ArgumentParser
+    from compyle.utils import ArgumentParser
     p = ArgumentParser()
-    p.add_argument(
-        '-b', '--backend', action='store', dest='backend', default='cython',
-        help='Choose the backend.'
-    )
-    p.add_argument(
-        '--openmp', action='store_true', dest='openmp', default=False,
-        help='Use OpenMP.'
-    )
-    p.add_argument(
-        '--use-double', action='store_true', dest='use_double',
-        default=False, help='Use double precision on the GPU.'
-    )
     p.add_argument('--nx', action='store', type=int, dest='nx',
                    default=100, help='Number of grid points in x.')
     p.add_argument('--ny', action='store', type=int, dest='ny',
                    default=100, help='Number of grid points in y.')
+    p.add_argument(
+        '--show', action='store_true', dest='show',
+        default=False, help='Show plot at the end of simulation'
+    )
     o = p.parse_args()
-    get_config().use_openmp = o.openmp
-    get_config().use_double = o.use_double
 
     grid = Grid(nx=o.nx, ny=o.ny, bc=bc, backend=o.backend)
 
@@ -134,3 +125,6 @@ if __name__ == '__main__':
 
     print("Number of iterations = %s" % count)
     print("Time taken = %g secs" % (end - start))
+
+    if o.show:
+        solver.grid.plot()
