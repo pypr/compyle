@@ -32,6 +32,9 @@ shown in the paper.
 | Figure 8         | `cd 3D && python performance_comparison.py --use-count-sort`  |
 +------------------+---------------------------------------------------------------+
 
+To generate energy plots for HooMD and Compyle implementations, run the script
+:code:`3D/compare_results.py`
+
 Users can use the google colab notebook 
 `here <https://colab.research.google.com/drive/1SGRiArYXV1LEkZtUeg9j0qQ21MDqQR2U?usp=sharing>`_
 to play around with the example.

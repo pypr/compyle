@@ -47,7 +47,7 @@ def simulate(num_particles, dt, tf, profile=False, log=False):
     lj.pair_coeff.set('A', 'A', epsilon=1.0, sigma=1.0)
 
     if log:
-        hoomd.analyze.log(filename="log-output.log",
+        hoomd.analyze.log(filename="hoomd-output.log",
                           quantities=['potential_energy', 'kinetic_energy'],
                           period=100,
                           overwrite=True)
