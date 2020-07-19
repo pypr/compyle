@@ -195,6 +195,20 @@ class ParallelUtilsBase(object):
         importorskip('pycuda')
         self._test_atomic_inc(backend='cuda')
 
+    def test_repeated_scans_with_different_settings(self):
+        importorskip('pyopencl')
+        with use_config(use_double=False):
+            self._test_unique_scan(backend='opencl')
+
+        with use_config(use_double=True):
+            self._test_unique_scan(backend='opencl')
+
+        with use_config(use_openmp=False):
+            self._test_unique_scan(backend='cython')
+
+        with use_config(use_openmp=True):
+            self._test_unique_scan(backend='cython')
+
 
 class TestParallelUtils(ParallelUtilsBase, unittest.TestCase):
     def setUp(self):

@@ -396,6 +396,10 @@ def serial(func=None, **kw):
         return wrapper(func)
 
 
+def get_common_cache_key(obj):
+    return obj.backend, obj._config.use_openmp, obj._config.use_double
+
+
 class ElementwiseBase(object):
     def __init__(self, func, backend=None):
         backend = array.get_backend(backend)
@@ -809,7 +813,7 @@ class ScanBase(object):
         self.c_func = self._generate()
 
     def _get_backend_key(self):
-        return (self.backend, self._config.use_openmp, self._config.use_double)
+        return get_common_cache_key(self)
 
     def _correct_return_type(self, c_data, modifier):
         code = self.tp.blocks[-1].code.splitlines()
@@ -1110,7 +1114,12 @@ class ScanBase(object):
 
     def __call__(self, **kwargs):
         c_args_dict = {k: self._massage_arg(x) for k, x in kwargs.items()}
-        output_arg_keys = self.output_func.arg_keys[self._get_backend_key()]
+        if self._get_backend_key() in self.output_func.arg_keys:
+            output_arg_keys = self.output_func.arg_keys[self._get_backend_key()]
+        else:
+            raise ValueError("No kernel arguments found for backend = %s, "
+                              "use_openmp = %s, use_double = %s" %
+                                      self._get_backend_key())
 
         if self.backend == 'cython':
             size = len(c_args_dict[output_arg_keys[1]])
