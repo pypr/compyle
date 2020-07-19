@@ -28,7 +28,7 @@ def calculate_force(i, x, y, z, fx, fy, fz, pe, nbr_starts, nbr_lengths, nbrs):
         irij2 = 1.0 / rij2
         irij6 = irij2 * irij2 * irij2
         irij12 = irij6 * irij6
-        pe[i] += (4 * (irij12 - irij6))
+        pe[i] += (2 * (irij12 - irij6))
         f_base = 24 * irij2 * (2 * irij12 - irij6)
 
         fx[i] += f_base * xij

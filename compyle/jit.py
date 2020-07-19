@@ -32,31 +32,6 @@ def memoize_kernel(key=lambda *args: args):
     return memoize_deco
 
 
-def kernel_cache_key_args(obj, *args):
-    key = [get_ctype_from_arg(arg) for arg in args]
-    key.append(obj.func)
-    key.append(obj.name)
-    key.append(obj.backend)
-    key.append(obj._config.use_openmp)
-    return tuple(key)
-
-
-def kernel_cache_key_kwargs(obj, **kwargs):
-    key = [get_ctype_from_arg(arg) for arg in kwargs.values()]
-    key.append(obj.input_func)
-    key.append(obj.output_func)
-    key.append(obj.scan_expr)
-    key.append(obj.backend)
-    key.append(obj._config.use_openmp)
-    return tuple(key)
-
-
-def getargspec(f):
-    getargspec_f = getattr(inspect, 'getfullargspec',
-                           getattr(inspect, 'getargspec'))
-    return getargspec_f(f)[0]
-
-
 def get_ctype_from_arg(arg):
     if isinstance(arg, array.Array):
         return arg.gptr_type
@@ -70,6 +45,27 @@ def get_ctype_from_arg(arg):
                 return 'long'
             else:
                 return 'int'
+
+
+def kernel_cache_key_args(obj, *args):
+    key = [get_ctype_from_arg(arg) for arg in args]
+    key.append(obj.func)
+    key.append(obj.name)
+    return tuple(key + list(parallel.get_common_cache_key(obj)))
+
+
+def kernel_cache_key_kwargs(obj, **kwargs):
+    key = [get_ctype_from_arg(arg) for arg in kwargs.values()]
+    key.append(obj.input_func)
+    key.append(obj.output_func)
+    key.append(obj.scan_expr)
+    return tuple(key + list(parallel.get_common_cache_key(obj)))
+
+
+def getargspec(f):
+    getargspec_f = getattr(inspect, 'getfullargspec',
+                           getattr(inspect, 'getargspec'))
+    return getargspec_f(f)[0]
 
 
 def get_binop_return_type(a, b):
@@ -514,7 +510,13 @@ class ScanJIT(parallel.ScanBase):
     def __call__(self, **kwargs):
         c_func = self._generate_kernel(**kwargs)
         c_args_dict = {k: self._massage_arg(x) for k, x in kwargs.items()}
-        output_arg_keys = self.output_func.arg_keys[self._get_backend_key()]
+        if self._get_backend_key() in self.output_func.arg_keys:
+            output_arg_keys = self.output_func.arg_keys[
+                    self._get_backend_key()]
+        else:
+            raise ValueError("No kernel arguments found for backend = %s, "
+                             "use_openmp = %s, use_double = %s" %
+                             self._get_backend_key())
 
         if self.backend == 'cython':
             size = len(c_args_dict[output_arg_keys[1]])
