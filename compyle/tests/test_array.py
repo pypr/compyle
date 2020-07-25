@@ -333,3 +333,19 @@ def test_dot(backend):
 
     # Then
     assert np.all(out_array == 32)
+
+
+@check_all_backends
+def test_cumsum(backend):
+    check_import(backend)
+
+    # Given
+    a = array.ones(100, dtype=int, backend=backend)
+
+    # When
+    b = array.cumsum(a)
+
+    # Then
+    a.pull()
+    b.pull()
+    assert np.all(b.data == np.cumsum(a.data))

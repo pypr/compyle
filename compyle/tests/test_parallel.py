@@ -419,7 +419,7 @@ class TestParallelUtils(ParallelUtilsBase, unittest.TestCase):
 
         @annotate(int='i, prev_item, item, N', ary='intp',
                   unique='intp', unique_count='intp')
-        def output_f(i, prev_item, item, N, ary, unique, unique_count):
+        def output_f(i, N, ary, unique, unique_count, item, prev_item):
             if item != prev_item:
                 unique[item - 1] = ary[i]
             if i == N - 1:

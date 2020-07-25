@@ -603,10 +603,12 @@ def cumsum(ary, backend=None, out=None):
     if backend is None:
         backend = ary.backend
     if backend == 'opencl' or backend == 'cuda':
+        import compyle.parallel as parallel
         if out is None:
             out = empty(ary.length, ary.dtype, backend=backend)
-        cumsum_scan = Scan(inp_cumsum, out_cumsum, 'a+b',
-                           dtype=ary.dtype, backend=backend)
+        cumsum_scan = parallel.Scan(
+            inp_cumsum, out_cumsum, 'a+b', dtype=ary.dtype, backend=backend
+        )
         cumsum_scan(ary=ary, out=out)
         return out
     elif backend == 'cython':
