@@ -839,19 +839,12 @@ class ScanBase(object):
         else:
             return False
 
-    def _ignore_arg(self, arg_name):
-        if arg_name in ['item', 'prev_item', 'last_item', 'i', 'N']:
-            return True
-        return False
+    def _not_ignored(self, args):
+        ignore = ['item', 'prev_item', 'last_item', 'i', 'N']
+        return [i for (i, x) in enumerate(args) if x not in ignore]
 
-    def _num_ignore_args(self, c_data):
-        result = 0
-        for arg_name in c_data[1][:]:
-            if self._ignore_arg(arg_name):
-                result += 1
-            else:
-                break
-        return result
+    def _filter_ignored(self, args, indices):
+        return [args[x] for x in indices]
 
     def _generate(self, declarations=None):
         if self.backend == 'opencl':
@@ -891,11 +884,11 @@ class ScanBase(object):
     def _append_cython_arg_data(self, all_py_data, all_c_data, py_data,
                                 c_data):
         if len(c_data) > 0:
-            n_ignore = self._num_ignore_args(c_data)
-            all_py_data[0].extend(py_data[0][n_ignore:])
-            all_py_data[1].extend(py_data[1][n_ignore:])
-            all_c_data[0].extend(c_data[0][n_ignore:])
-            all_c_data[1].extend(c_data[1][n_ignore:])
+            select = self._not_ignored(c_data[1])
+            all_py_data[0].extend(self._filter_ignored(py_data[0], select))
+            all_py_data[1].extend(self._filter_ignored(py_data[1], select))
+            all_c_data[0].extend(self._filter_ignored(c_data[0], select))
+            all_c_data[1].extend(self._filter_ignored(c_data[1], select))
 
     def _generate_cython_code(self, declarations=None):
         name = self.name
@@ -981,9 +974,9 @@ class ScanBase(object):
                 args=', '.join(c_data[1])
             )
 
-            n_ignore = self._num_ignore_args(c_data)
-            arguments = c_data[0][n_ignore:]
-            c_args = c_data[1][n_ignore:]
+            select = self._not_ignored(c_data[1])
+            arguments = self._filter_ignored(c_data[0], select)
+            c_args = self._filter_ignored(c_data[1], select)
         else:
             if func_type is 'input':
                 if self.backend == 'opencl':
