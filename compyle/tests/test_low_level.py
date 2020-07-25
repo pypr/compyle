@@ -8,7 +8,7 @@ from ..array import wrap
 from ..types import annotate, declare
 from ..low_level import (
     Cython, Kernel, LocalMem, local_barrier, GID_0, LDIM_0, LID_0,
-    nogil, prange, parallel
+    nogil, prange, parallel, cast
 )
 
 
@@ -194,3 +194,11 @@ class TestCython(unittest.TestCase):
         self.assertEqual(fac(0), 1)
         self.assertEqual(fac(1), 1)
         self.assertEqual(fac(3), 6)
+
+
+def test_cast_works_in_pure_python():
+    x = cast(1.23, "int")
+    assert x == 1
+
+    y = cast(2, "float")
+    assert y == 2.0

@@ -323,8 +323,8 @@ class _cast(Extern):
     def code(self, backend):
         return ''
 
-    def __call__(self, *args, **kw):
-        pass
+    def __call__(self, x, type_str):
+        return eval(type_str)(x)
 
 
 prange = _prange()
