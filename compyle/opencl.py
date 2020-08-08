@@ -2,14 +2,12 @@
 """
 from __future__ import print_function
 import pyopencl as cl
-from collections import defaultdict
-from operator import itemgetter
 
 from .config import get_config
+from .profile import profile_kernel, named_profile
 
 _ctx = None
 _queue = None
-_profile_info = defaultdict(float)
 
 
 class DeviceWGSException(Exception):
@@ -41,59 +39,6 @@ def get_queue():
 def set_queue(q):
     global _queue
     _queue = q
-
-
-def profile(name, event):
-    global _profile_info
-    event.wait()
-    time = (event.profile.end - event.profile.start) * 1e-9
-    _profile_info[name] += time
-
-
-def print_profile():
-    global _profile_info
-    _profile_info = sorted(_profile_info.items(), key=itemgetter(1),
-                           reverse=True)
-    if len(_profile_info) == 0:
-        print("No profile information available")
-        return
-    print("{:<30} {:<30}".format('Kernel', 'Time'))
-    tot_time = 0
-    for kernel, time in _profile_info:
-        print("{:<30} {:<30}".format(kernel, time))
-        tot_time += time
-    print("Total profiled time: %g secs" % tot_time)
-
-
-def profile_kernel(kernel, name):
-    def _profile_knl(*args, **kwargs):
-        event = kernel(*args, **kwargs)
-        profile(name, event)
-        return event
-
-    if get_config().profile:
-        wgi = getattr(kernel, 'get_work_group_info', None)
-        if wgi is not None:
-            _profile_knl.get_work_group_info = wgi
-        return _profile_knl
-    else:
-        return kernel
-
-
-def named_profile(name):
-    def _decorator(f):
-        if name is None:
-            n = f.__name__
-        else:
-            n = name
-
-        def _profiled_kernel_generator(*args, **kwargs):
-            kernel = f(*args, **kwargs)
-            return profile_kernel(kernel, n)
-
-        return _profiled_kernel_generator
-
-    return _decorator
 
 
 class SimpleKernel(object):

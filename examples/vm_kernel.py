@@ -97,20 +97,11 @@ def run(nv, backend):
 
 
 if __name__ == '__main__':
-    from argparse import ArgumentParser
+    from compyle.utils import ArgumentParser
     p = ArgumentParser()
-    p.add_argument(
-        '-b', '--backend', action='store', dest='backend',
-        default='opencl', help='Choose the backend.'
-    )
-    p.add_argument(
-        '--use-double', action='store_true', dest='use_double',
-        default=False,  help='Use double precision on the GPU.'
-    )
     p.add_argument('-n', action='store', type=int, dest='n',
                    default=10000, help='Number of particles.')
     o = p.parse_args()
-    get_config().use_double = o.use_double
     assert o.backend in ['opencl', 'cuda'], ("Only OpenCL/CUDA backend is "
                                              "supported.")
     run(o.n, o.backend)

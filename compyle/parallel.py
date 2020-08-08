@@ -11,8 +11,10 @@ from textwrap import wrap
 
 from mako.template import Template
 import numpy as np
+import time
 
 from .config import get_config
+from .profile import profile
 from .cython_generator import get_parallel_range, CythonGenerator
 from .transpiler import Transpiler, convert_to_float_if_needed
 from .types import dtype_to_ctype
@@ -519,6 +521,7 @@ class ElementwiseBase(object):
         else:
             return np.asarray(x)
 
+    @profile
     def __call__(self, *args, **kw):
         c_args = [self._massage_arg(x) for x in args]
         if self.backend == 'cython':
@@ -741,6 +744,7 @@ class ReductionBase(object):
         else:
             return np.asarray(x)
 
+    @profile
     def __call__(self, *args):
         c_args = [self._massage_arg(x) for x in args]
         if self.backend == 'cython':
@@ -1105,6 +1109,7 @@ class ScanBase(object):
         else:
             return np.asarray(x)
 
+    @profile
     def __call__(self, **kwargs):
         c_args_dict = {k: self._massage_arg(x) for k, x in kwargs.items()}
         if self._get_backend_key() in self.output_func.arg_keys:

@@ -1,5 +1,6 @@
 import numpy as np
 import mako.template as mkt
+import time
 from pytools import memoize, memoize_method
 
 from .config import get_config
@@ -7,10 +8,13 @@ from .types import (annotate, dtype_to_ctype,
                     dtype_to_knowntype, knowntype_to_ctype)
 from .template import Template
 from .sort import radix_sort
+from .profile import profile
 
 
 try:
     import pycuda
+    from .cuda import set_context
+    set_context()
     # if pycuda.VERSION >= (2014, 1):
     if False:
         def cu_bufint(arr, nbytes, offset):
@@ -455,6 +459,7 @@ def get_allocator(queue):
     return allocator
 
 
+@profile
 def sort_by_keys(ary_list, out_list=None, key_bits=None,
                  backend=None, use_radix_sort=False):
     # FIXME: Need to use returned values, cuda backend uses
@@ -599,6 +604,7 @@ def out_cumsum(i, ary, out, item):
     out[i] = item
 
 
+@profile
 def cumsum(ary, backend=None, out=None):
     if backend is None:
         backend = ary.backend
@@ -835,6 +841,7 @@ class Array(object):
         arr_copy.set_data(self.dev.copy())
         return arr_copy
 
+    @profile
     def update_min_max(self, only_min=False, only_max=False):
         if self.backend == 'cython':
             self.minimum = minimum(self, backend=self.backend)
@@ -892,6 +899,7 @@ class Array(object):
 
         return fill_if_remove_knl, remove_knl
 
+    @profile
     def remove(self, indices, input_sorted=False):
         if len(indices) > self.length:
             msg = 'Number of indices to be removed is greater than'

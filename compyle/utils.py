@@ -1,6 +1,8 @@
 import inspect
 import argparse
+import atexit
 from compyle.config import get_config
+from compyle.profile import print_profile
 
 
 def getsourcelines(obj):
@@ -54,6 +56,12 @@ class ArgumentParser(argparse.ArgumentParser):
             dest='suppress_warnings',
             default=False, help='Suppress warnings'
         )
+        self.add_argument(
+            '--profile', action='store_true',
+            dest='profile',
+            default=False, help='Print profiling info'
+        )
+        self.profile_registered = False
 
     def _set_config_options(self, options):
         get_config().use_openmp = options.openmp
@@ -63,6 +71,10 @@ class ArgumentParser(argparse.ArgumentParser):
             get_config().use_opencl = True
         if options.backend == 'cuda':
             get_config().use_cuda = True
+        if options.profile and not self.profile_registered:
+            get_config().profile = True
+            atexit.register(print_profile)
+            self.profile_registered = True
 
     def parse_args(self, *args, **kwargs):
         options = super().parse_args(*args, **kwargs)

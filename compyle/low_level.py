@@ -14,6 +14,7 @@ from .array import Array, get_backend
 from .transpiler import Transpiler
 from .types import KnownType, ctype_to_dtype
 from .extern import Extern
+from .profile import profile
 
 
 LID_0 = LDIM_0 = GDIM_0 = GID_0 = 0
@@ -240,6 +241,7 @@ class Kernel(object):
             gs, ls = splay(global_size)
         return gs, ls
 
+    @profile
     def __call__(self, *args, **kw):
         size = args[0].data.shape
         gs = kw.pop('global_size', size)
