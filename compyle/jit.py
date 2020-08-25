@@ -5,6 +5,7 @@ import inspect
 import ast
 import importlib
 import warnings
+import time
 from pytools import memoize
 from .config import get_config
 from .cython_generator import CythonGenerator
@@ -13,6 +14,7 @@ from .types import (dtype_to_ctype, get_declare_info,
                     dtype_to_knowntype, annotate)
 from .extern import Extern
 from .utils import getsourcelines
+from .profile import profile
 
 from . import array
 from . import parallel
@@ -325,6 +327,7 @@ class ElementwiseJIT(parallel.ElementwiseBase):
         else:
             return np.asarray(x)
 
+    @profile
     def __call__(self, *args, **kw):
         c_func = self._generate_kernel(*args)
         c_args = [self._massage_arg(x) for x in args]
@@ -400,6 +403,7 @@ class ReductionJIT(parallel.ReductionBase):
         else:
             return np.asarray(x)
 
+    @profile
     def __call__(self, *args, **kw):
         c_func = self._generate_kernel(*args)
         c_args = [self._massage_arg(x) for x in args]
@@ -507,6 +511,7 @@ class ScanJIT(parallel.ScanBase):
         else:
             return np.asarray(x)
 
+    @profile
     def __call__(self, **kwargs):
         c_func = self._generate_kernel(**kwargs)
         c_args_dict = {k: self._massage_arg(x) for k, x in kwargs.items()}

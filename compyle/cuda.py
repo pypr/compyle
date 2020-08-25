@@ -35,7 +35,11 @@ import pycuda.gpuarray as gpuarray   # noqa
 
 class SourceModule(_SourceModule):
     def __getattr__(self, name):
-        return self.get_function(name)
+        def kernel(*args, **kwargs):
+            f = self.get_function(name)
+            return f(*args, **kwargs)
+        kernel.function_name = name
+        return kernel
 
 
 class _CDeclList:
