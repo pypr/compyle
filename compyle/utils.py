@@ -2,7 +2,7 @@ import inspect
 import argparse
 import atexit
 from compyle.config import get_config
-from compyle.profile import print_profile
+from compyle.profile import print_profile, print_flops_info
 
 
 def getsourcelines(obj):
@@ -61,7 +61,14 @@ class ArgumentParser(argparse.ArgumentParser):
             dest='profile',
             default=False, help='Print profiling info'
         )
+        self.add_argument(
+            '--count-flops', action='store_true',
+            dest='count_flops',
+            default=False, help='Print flops info'
+        )
+
         self.profile_registered = False
+        self.flops_registered = False
 
     def _set_config_options(self, options):
         get_config().use_openmp = options.openmp
@@ -75,6 +82,10 @@ class ArgumentParser(argparse.ArgumentParser):
             get_config().profile = True
             atexit.register(print_profile)
             self.profile_registered = True
+        if options.count_flops and not self.flops_registered:
+            get_config().count_flops = True
+            atexit.register(print_flops_info)
+            self.flops_registered = True
 
     def parse_args(self, *args, **kwargs):
         options = super().parse_args(*args, **kwargs)

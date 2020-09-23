@@ -8,12 +8,19 @@ from .config import get_config
 
 
 _profile_info = defaultdict(lambda: {'calls': 0, 'time': 0})
+_flops_info = defaultdict(lambda: {'calls': 0, 'flops': 0})
 
 
 def _record_profile(name, time):
     global _profile_info
     _profile_info[name]['time'] += time
     _profile_info[name]['calls'] += 1
+
+
+def record_flops(name, flops):
+    global _flops_info
+    _flops_info[name]['flops'] += flops
+    _flops_info[name]['calls'] += 1
 
 
 @contextmanager
@@ -54,6 +61,21 @@ def get_profile_info():
     return _profile_info
 
 
+def get_flops_info():
+    global _flops_info
+    return _flops_info
+
+
+def reset_profile_info():
+    global _profile_info
+    _profile_info = defaultdict(lambda: {'calls': 0, 'time': 0})
+
+
+def reset_flops_info():
+    global _flops_info
+    _flops_info = defaultdict(lambda: {'calls': 0, 'flops': 0})
+
+
 def print_profile():
     global _profile_info
     profile_data = sorted(_profile_info.items(), key=lambda x: x[1]['time'],
@@ -71,6 +93,25 @@ def print_profile():
             data['time']))
         tot_time += data['time']
     print("Total profiled time: %g secs" % tot_time)
+
+
+def print_flops_info():
+    global _flops_info
+    flops_data = sorted(_flops_info.items(), key=lambda x: x[1]['flops'],
+                        reverse=True)
+    if len(_flops_info) == 0:
+        print("No flops information available")
+        return
+    print("FLOPS info:")
+    print("{:<40} {:<10} {:<10}".format('Function', 'N calls', 'FLOPS'))
+    tot_flops = 0
+    for kernel, data in flops_data:
+        print("{:<40} {:<10} {:<10}".format(
+            kernel,
+            data['calls'],
+            data['flops']))
+        tot_flops += data['flops']
+    print("Total FLOPS: %i" % tot_flops)
 
 
 def profile_kernel(kernel, name, backend=None):

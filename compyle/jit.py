@@ -14,7 +14,7 @@ from .types import (dtype_to_ctype, get_declare_info,
                     dtype_to_knowntype, annotate)
 from .extern import Extern
 from .utils import getsourcelines
-from .profile import profile
+from .profile import record_flops, profile
 
 from . import array
 from . import parallel
@@ -265,13 +265,9 @@ class AnnotationHelper(ast.NodeVisitor):
         return self.visit(node.operand)
 
     def visit_Return(self, node):
-        if isinstance(node.value, ast.Name) or \
-                isinstance(node.value, ast.Subscript) or \
-                isinstance(node.value, ast.Num) or \
-                isinstance(node.value, ast.BinOp) or \
-                isinstance(node.value, ast.Call) or \
-                isinstance(node.value, ast.IfExp) or \
-                isinstance(node.value, ast.UnaryOp):
+        valid_return_expr = (ast.Name, ast.Subscript, ast.Num, ast.BinOp,
+                             ast.Call, ast.IfExp, ast.UnaryOp)
+        if isinstance(node.value, valid_return_expr):
             result_type = self.visit(node.value)
             if result_type:
                 self.arg_types['return_'] = result_type
@@ -287,11 +283,12 @@ class AnnotationHelper(ast.NodeVisitor):
 class ElementwiseJIT(parallel.ElementwiseBase):
     def __init__(self, func, backend=None):
         backend = array.get_backend(backend)
-        self.tp = Transpiler(backend=backend)
+        self._config = get_config()
+        self.tp = Transpiler(backend=backend,
+                             count_flops=self._config.count_flops)
         self.backend = backend
         self.name = 'elwise_%s' % func.__name__
         self.func = func
-        self._config = get_config()
         self.cython_gen = CythonGenerator()
         self.source = '# Code jitted, call the function to generate the code.'
         self.all_source = self.source
@@ -333,6 +330,10 @@ class ElementwiseJIT(parallel.ElementwiseBase):
     def __call__(self, *args, **kw):
         c_func = self._generate_kernel(*args)
         c_args = [self._massage_arg(x) for x in args]
+        if self._config.count_flops:
+            flop_counter = array.zeros(args[0].length, np.int64,
+                                       backend=self.backend)
+            c_args.append(flop_counter.dev)
 
         if self.backend == 'cython':
             size = len(c_args[0])
@@ -347,6 +348,9 @@ class ElementwiseJIT(parallel.ElementwiseBase):
             c_func(*c_args, **kw)
             event.record()
             event.synchronize()
+        if self._config.count_flops:
+            flops = array.sum(flop_counter)
+            record_flops(self.name, flops)
 
 
 class ReductionJIT(parallel.ReductionBase):
@@ -523,7 +527,7 @@ class ScanJIT(parallel.ScanBase):
         c_args_dict = {k: self._massage_arg(x) for k, x in kwargs.items()}
         if self._get_backend_key() in self.output_func.arg_keys:
             output_arg_keys = self.output_func.arg_keys[
-                    self._get_backend_key()]
+                self._get_backend_key()]
         else:
             raise ValueError("No kernel arguments found for backend = %s, "
                              "use_openmp = %s, use_double = %s" %

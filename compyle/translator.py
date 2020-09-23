@@ -26,6 +26,7 @@ from .cython_generator import (
     CodeGenerationError, KnownType, Undefined, all_numeric
 )
 from .utils import getsource
+from . import transpiler as tp
 
 PY_VER = sys.version_info.major
 
@@ -60,8 +61,9 @@ def detect_type(name, value):
         )
 
 
-def py2c(src, detect_type=detect_type, known_types=None):
-    converter = CConverter(detect_type=detect_type, known_types=known_types)
+def py2c(src, detect_type=detect_type, known_types=None, count_flops=False):
+    converter = CConverter(detect_type=detect_type, known_types=known_types,
+                           count_flops=count_flops)
     result = converter.convert(src)
     r = converter.get_declarations() + result
     print(r)
@@ -121,7 +123,8 @@ class CStructHelper(object):
 
 
 class CConverter(ast.NodeVisitor):
-    def __init__(self, detect_type=detect_type, known_types=None):
+    def __init__(self, detect_type=detect_type, known_types=None,
+                 count_flops=False):
         self._declares = {}
         self._known = set((
             'M_E', 'M_LOG2E', 'M_LOG10E', 'M_LN2', 'M_LN10',
@@ -140,11 +143,17 @@ class CConverter(ast.NodeVisitor):
         self._annotations = {}
         self._declarations = None
         self._ignore_methods = []
+        self._count_flops = count_flops
+        self._flop_count = [0]
+        self._depth = 0
+        self._last_for_depth = -1
+        self._external_funcs = []
         self._replacements = {
             'True': '1', 'False': '0', 'None': 'NULL',
             True: '1', False: '0', None: 'NULL',
         }
         self.function_address_space = ''
+        self.backend = None
 
     def _body_has_return(self, body):
         return re.search(r'\breturn\b', body) is not None
@@ -198,6 +207,9 @@ class CConverter(ast.NodeVisitor):
                 arg, type = self._get_local_arg(arg, type)
             call_sig.append('{type} {arg}'.format(type=type, arg=arg))
 
+        if self._count_flops:
+            call_sig.append(self._get_flop_counter_arg())
+
         return ', '.join(call_sig)
 
     def _get_variable_declaration(self, type_str, names):
@@ -236,6 +248,9 @@ class CConverter(ast.NodeVisitor):
     def _get_local_declarations(self):
         return ''
 
+    def _get_flop_counter_arg(self):
+        return 'long* cpy_flop_counter'
+
     def add_known(self, names):
         '''Add a known name that should not be auto-declared.
 
@@ -250,6 +265,8 @@ class CConverter(ast.NodeVisitor):
         self._src = src.splitlines()
         code = ast.parse(src)
         result = self.visit(code)
+        if self._depth:
+            raise ValueError("Non-zero function depth at the end of parsing")
         self._ignore_methods = []
         return result
 
@@ -301,6 +318,10 @@ class CConverter(ast.NodeVisitor):
     def parse_function(self, obj, declarations=None):
         src = dedent(getsource(obj))
         fname = obj.__name__
+        symbols, implicits, funcs, externs = tp.get_external_symbols_and_calls(
+            obj, self.backend
+        )
+        self._external_funcs = [f.__name__ for f in funcs]
         self._declarations = declarations
         self._annotations[fname] = getattr(obj, '__annotations__', {})
         self._local_decl = self._get_local_info(obj)
@@ -308,11 +329,34 @@ class CConverter(ast.NodeVisitor):
         self._local_decl = None
         self._annotations = {}
         self._declarations = None
+        self._external_funcs = []
         return code
 
     def render_atomic(self, func, arg):
         raise NotImplementedError(
             "Atomics only supported by CUDA/OpenCL backends")
+
+    def _get_flop_increment(self):
+        return self._indent_block(
+            'cpy_flop_counter[${offset}] += %i;' %
+            self._flop_count[self._depth]
+        )
+
+    def _increment_depth(self):
+        self._depth += 1
+        if len(self._flop_count) <= self._depth:
+            self._flop_count.append(0)
+
+    def _get_flop_increment_cumulative(self, final_depth):
+        if not self._count_flops:
+            return ''
+        current_depth = self._depth
+        total_increment = 0
+        while current_depth >= final_depth:
+            total_increment += self._flop_count[current_depth]
+            current_depth -= 1
+        return 'cpy_flop_counter[${offset}] += %i;' % \
+            total_increment + '\n'
 
     def visit_LShift(self, node):
         return '<<'
@@ -358,10 +402,12 @@ class CConverter(ast.NodeVisitor):
         return '%s->%s' % (self.visit(node.value), node.attr)
 
     def visit_AugAssign(self, node):
+        self._flop_count[self._depth] += 1
         return '%s %s= %s;' % (self.visit(node.target), self.visit(node.op),
                                self.visit(node.value))
 
     def visit_BinOp(self, node):
+        self._flop_count[self._depth] += 1
         if isinstance(node.op, ast.Pow):
             return 'pow(%s, %s)' % (
                 self.visit(node.left), self.visit(node.right)
@@ -372,11 +418,14 @@ class CConverter(ast.NodeVisitor):
             return '(%s %s %s)' % result
 
     def visit_BoolOp(self, node):
+        self._flop_count[self._depth] += 1
         op = ' %s ' % self.visit(node.op)
         return '(%s)' % (op.join(self.visit(x) for x in node.values))
 
     def visit_Break(self, node):
-        return 'break;'
+        flop_increments = self._get_flop_increment_cumulative(
+            self._last_for_depth)
+        return flop_increments + 'break;'
 
     def visit_Call(self, node):
         if isinstance(node.func, ast.Name):
@@ -387,9 +436,12 @@ class CConverter(ast.NodeVisitor):
             elif node.func.id == 'cast':
                 return '(%s) (%s)' % (node.args[1].s, self.visit(node.args[0]))
             else:
+                args = ', '.join(self.visit(x) for x in node.args)
+                if self._count_flops and node.func.id in self._external_funcs:
+                    args = args + ', cpy_flop_counter + ${offset}'
                 return '{func}({args})'.format(
                     func=node.func.id,
-                    args=', '.join(self.visit(x) for x in node.args)
+                    args=args
                 )
         elif isinstance(node.func, ast.Attribute):
             if node.func.value.id in self._known_types:
@@ -426,7 +478,9 @@ class CConverter(ast.NodeVisitor):
                                self.visit(node.comparators[0]))
 
     def visit_Continue(self, node):
-        return 'continue;'
+        flop_increments = self._get_flop_increment_cumulative(
+            self._last_for_depth)
+        return flop_increments + 'continue;'
 
     def visit_Div(self, node):
         return '/'
@@ -462,6 +516,9 @@ class CConverter(ast.NodeVisitor):
         positive_step = True
         int_step = True
         int_stop = True
+        self._increment_depth()
+        prev_last_for_depth = self._last_for_depth
+        self._last_for_depth = self._depth
         if len(args) == 1:
             start, stop, incr = 0, self.visit(args[0]), 1
             int_stop = simple = self._check_if_integer(stop)
@@ -488,19 +545,28 @@ class CConverter(ast.NodeVisitor):
                 target_type = ''
 
         target = self.visit(node.target)
+
         if simple:
+            block = '\n'.join(self._indent_block(self.visit(x))
+                              for x in node.body)
+            if self._count_flops:
+                block += '\n' + self._get_flop_increment()
+
             comparator = '<' if positive_step else '>'
             r = ('for ({type}{i}={start}; {i}{comp}{stop}; {i}+={incr})'
                  ' {{\n{block}\n}}\n').format(
                      i=target, type=target_type,
                      start=start, stop=stop, incr=incr, comp=comparator,
-                     block='\n'.join(
-                         self._indent_block(self.visit(x)) for x in node.body
-                     )
+                     block=block
             )
         else:
             count = self._for_count
             self._for_count += 1
+            block = '\n'.join(self._indent_block(self.visit(x))
+                              for x in node.body)
+            if self._count_flops:
+                block += '\n' + self._get_flop_increment()
+
             r = ''
             if not int_stop:
                 stop_var = '__cpy_stop_{count}'.format(count=count)
@@ -514,9 +580,6 @@ class CConverter(ast.NodeVisitor):
                 stop = stop_var
             if int_step:
                 comparator = '<' if positive_step else '>'
-                block = '\n'.join(
-                    self._indent_block(self.visit(x)) for x in node.body
-                )
                 r += ('for ({type}{i}={start}; {i}{comp}{stop}; {i}+={incr})'
                       ' {{\n{block}\n}}\n').format(
                           i=target, type=target_type,
@@ -533,9 +596,6 @@ class CConverter(ast.NodeVisitor):
                     type=type, step_var=step_var, incr=incr
                 )
                 incr = step_var
-                block = '\n'.join(
-                    self._indent_block(self.visit(x)) for x in node.body
-                )
                 r += dedent('''\
                 if ({incr} < 0) {{
                     for ({type}{i}={start}; {i}>{stop}; {i}+={incr}) {{
@@ -560,6 +620,9 @@ class CConverter(ast.NodeVisitor):
 
         if local_scope:
             self._known.remove(node.target.id)
+        self._flop_count[self._depth] = 0
+        self._depth -= 1
+        self._last_for_depth = prev_last_for_depth
         return r
 
     def visit_FunctionDef(self, node):
@@ -568,6 +631,8 @@ class CConverter(ast.NodeVisitor):
         assert node.args.kwarg is None, \
             "Functions with kwargs not supported in line %d." % node.lineno
 
+        self._depth = 0
+        self._flop_count = [0]
         if self._class_name and (node.name.startswith(('_', 'py_')) or
                                  node.name in self._ignore_methods):
             return ''
@@ -581,8 +646,13 @@ class CConverter(ast.NodeVisitor):
             self._known.update(x.arg for x in node.args.args)
 
         args = self._get_function_args(node)
-        body = '\n'.join(self._indent_block(self.visit(item))
-                         for item in self._remove_docstring(node.body))
+        bodylines = [self._indent_block(self.visit(item))
+                     for item in self._remove_docstring(node.body)]
+
+        if self._count_flops and not isinstance(node.body[-1], ast.Return):
+            bodylines.append(self._get_flop_increment())
+
+        body = '\n'.join(bodylines)
         local_decl = self._get_local_declarations()
         if len(self._class_name) > 0:
             func_name = self._class_name + '_' + node.name
@@ -602,6 +672,7 @@ class CConverter(ast.NodeVisitor):
         ))
         self._known = orig_known
         self._declares = orig_declares
+        self._flop_count = [0]
         return sig + '\n{\n' + local_decl + declares + body + '\n}\n'
 
     def visit_Gt(self, node):
@@ -611,18 +682,31 @@ class CConverter(ast.NodeVisitor):
         return '>='
 
     def visit_If(self, node):
-        code = 'if ({cond}) {{\n{block}\n}}\n'.format(
-            cond=self.visit(node.test),
-            block='\n'.join(
+        cond = self.visit(node.test)
+        self._increment_depth()
+        block = '\n'.join(
                 self._indent_block(self.visit(x)) for x in node.body
-            )
         )
+        if self._count_flops and not isinstance(
+                node.body[-1], (ast.Continue, ast.Break, ast.Return)):
+            block += '\n' + self._get_flop_increment()
+        code = 'if ({cond}) {{\n{block}\n}}\n'.format(
+            cond=cond,
+            block=block
+        )
+        self._flop_count[self._depth] = 0
         if node.orelse:
-            code += 'else {{\n{block}\n}}\n'.format(
-                block='\n'.join(
-                    self._indent_block(self.visit(x)) for x in node.orelse
-                )
+            block = '\n'.join(
+                self._indent_block(self.visit(x)) for x in node.orelse
             )
+            if self._count_flops and not isinstance(
+                    node.orelse[-1], (ast.Continue, ast.Break, ast.Return)):
+                block += '\n' + self._get_flop_increment()
+            code += 'else {{\n{block}\n}}\n'.format(
+                block=block
+            )
+        self._flop_count[self._depth] = 0
+        self._depth -= 1
         return code
 
     def visit_IfExp(self, node):
@@ -689,9 +773,12 @@ class CConverter(ast.NodeVisitor):
 
     def visit_Return(self, node):
         if node.value:
-            return 'return %s;' % (self.visit(node.value))
+            ret_value = self.visit(node.value)
+        flop_increments = self._get_flop_increment_cumulative(0)
+        if node.value:
+            return flop_increments + 'return %s;' % ret_value
         else:
-            return 'return;'
+            return flop_increments + 'return;'
 
     def visit_Sub(self, node):
         return '-'
@@ -716,14 +803,20 @@ class CConverter(ast.NodeVisitor):
         return '-'
 
     def visit_While(self, node):
+        self._increment_depth()
         if node.orelse:
             self.error('Does not support while/else clauses.', node.orelse[0])
-        return 'while ({cond}) {{\n{block}\n}}\n'.format(
-            cond=self.visit(node.test),
-            block='\n'.join(
-                self._indent_block(self.visit(x)) for x in node.body
-            )
+        block = '\n'.join(
+            self._indent_block(self.visit(x)) for x in node.body
         )
+        if self._count_flops:
+            block += '\n' + self._get_flop_increment()
+        code = 'while ({cond}) {{\n{block}\n}}\n'.format(
+            cond=self.visit(node.test), block=block
+        )
+        self._flop_count[self._depth] = 0
+        self._depth -= 1
+        return code
 
 
 def ocl_detect_pointer_base_type(name, value):
@@ -761,8 +854,10 @@ def ocl_detect_type(name, value):
 
 
 class OpenCLConverter(CConverter):
-    def __init__(self, detect_type=ocl_detect_type, known_types=None):
-        super(OpenCLConverter, self).__init__(detect_type, known_types)
+    def __init__(self, detect_type=ocl_detect_type, known_types=None,
+                 count_flops=False):
+        super(OpenCLConverter, self).__init__(detect_type, known_types,
+                                              count_flops=count_flops)
         self.function_address_space = 'WITHIN_KERNEL '
         self._known.update((
             'LID_0', 'LID_1', 'LID_2',
@@ -770,9 +865,13 @@ class OpenCLConverter(CConverter):
             'LDIM_0', 'LDIM_1', 'LDIM_2',
             'GDIM_0', 'GDIM_1', 'GDIM_2'
         ))
+        self.backend = 'opencl'
 
     def _get_self_type(self):
         return KnownType('GLOBAL_MEM %s*' % self._class_name)
+
+    def _get_flop_counter_arg(self):
+        return 'GLOBAL_MEM long* cpy_flop_counter'
 
     def render_atomic(self, func, arg):
         if func == 'atomic_inc':
@@ -782,9 +881,12 @@ class OpenCLConverter(CConverter):
 
 
 class CUDAConverter(OpenCLConverter):
-    def __init__(self, detect_type=ocl_detect_type, known_types=None):
-        super(CUDAConverter, self).__init__(detect_type, known_types)
+    def __init__(self, detect_type=ocl_detect_type, known_types=None,
+                 count_flops=False):
+        super(CUDAConverter, self).__init__(detect_type, known_types,
+                                            count_flops=count_flops)
         self._local_decl = None
+        self.backend = 'cuda'
 
     def _get_local_arg(self, arg, type):
         return 'size_%s' % arg, 'int'

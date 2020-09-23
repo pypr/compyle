@@ -13,7 +13,7 @@ from mako.template import Template
 import numpy as np
 
 from .config import get_config
-from .profile import profile
+from .profile import record_flops, profile
 from .cython_generator import get_parallel_range, CythonGenerator
 from .transpiler import Transpiler, convert_to_float_if_needed
 from .types import dtype_to_ctype
@@ -404,11 +404,12 @@ def get_common_cache_key(obj):
 class ElementwiseBase(object):
     def __init__(self, func, backend=None):
         backend = array.get_backend(backend)
-        self.tp = Transpiler(backend=backend)
+        self._config = get_config()
+        self.tp = Transpiler(backend=backend,
+                             count_flops=self._config.count_flops)
         self.backend = backend
         self.name = 'elwise_%s' % func.__name__
         self.func = func
-        self._config = get_config()
         self.cython_gen = CythonGenerator()
         self.queue = None
         # This is the source generated for the user code.
@@ -453,11 +454,17 @@ class ElementwiseBase(object):
             ctx = get_context()
             self.queue = get_queue()
             name = self.func.__name__
+            call_args = ', '.join(c_data[1])
+            if self._config.count_flops:
+                call_args += ', cpy_flop_counter'
             expr = '{func}({args})'.format(
                 func=name,
-                args=', '.join(c_data[1])
+                args=call_args
             )
             arguments = convert_to_float_if_needed(', '.join(c_data[0][1:]))
+            if self._config.count_flops:
+                arguments += ', long* cpy_flop_counter'
+
             preamble = convert_to_float_if_needed(self.tp.get_code())
             cluda_preamble = Template(text=CLUDA_PREAMBLE).render(
                 double_support=True
@@ -483,11 +490,17 @@ class ElementwiseBase(object):
             from pycuda.elementwise import ElementwiseKernel
             from pycuda._cluda import CLUDA_PREAMBLE
             name = self.func.__name__
+            call_args = ', '.join(c_data[1])
+            if self._config.count_flops:
+                call_args += ', cpy_flop_counter'
             expr = '{func}({args})'.format(
                 func=name,
-                args=', '.join(c_data[1])
+                args=call_args
             )
             arguments = convert_to_float_if_needed(', '.join(c_data[0][1:]))
+            if self._config.count_flops:
+                arguments += ', long* cpy_flop_counter'
+
             preamble = convert_to_float_if_needed(self.tp.get_code())
             cluda_preamble = Template(text=CLUDA_PREAMBLE).render(
                 double_support=True
@@ -519,6 +532,8 @@ class ElementwiseBase(object):
                 return arg
 
         args = [_add_address_space(arg) for arg in c_data[0]]
+        if self._config.count_flops:
+            args.append('GLOBAL_MEM long* cpy_flop_counter')
         code[:header_idx] = wrap(
             'WITHIN_KERNEL void {func}({args})'.format(
                 func=self.func.__name__,
@@ -527,6 +542,14 @@ class ElementwiseBase(object):
             width=78, subsequent_indent=' ' * 4, break_long_words=False
         )
         self.tp.blocks[-1].code = '\n'.join(code)
+        if self._config.count_flops:
+            for idx, block in enumerate(self.tp.blocks[:-1]):
+                self.tp.blocks[idx].code = block.code.replace(
+                    '${offset}', '0'
+                )
+            self.tp.blocks[-1].code = self.tp.blocks[-1].code.replace(
+                '${offset}', 'i'
+            )
 
     def _massage_arg(self, x):
         if isinstance(x, array.Array):
@@ -539,6 +562,10 @@ class ElementwiseBase(object):
     @profile
     def __call__(self, *args, **kw):
         c_args = [self._massage_arg(x) for x in args]
+        if self._config.count_flops:
+            flop_counter = array.zeros(args[0].length, np.int64,
+                                       backend=self.backend)
+            c_args.append(flop_counter.dev)
         if self.backend == 'cython':
             size = len(c_args[0])
             c_args.insert(0, size)
@@ -552,6 +579,9 @@ class ElementwiseBase(object):
             self.c_func(*c_args, **kw)
             event.record()
             event.synchronize()
+        if self._config.count_flops:
+            flops = array.sum(flop_counter)
+            record_flops(self.name, flops)
 
 
 class Elementwise(object):
