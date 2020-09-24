@@ -431,14 +431,14 @@ works on all backends, even on Cython.
 ~~~~~~~~~~
 
 Scans are generalizations of prefix sums / cumulative sums and can be used as
-building blocks to construct a number of parallel algorithms. These include but
-not are limited to sorting, polynomial evaluation, and tree
-operations. Blelloch's literature on prefix sums (`Prefix Sums and Their
-Applications <https://www.cs.cmu.edu/~guyb/papers/Ble93.pdf>`_) has many more
-examples and is a recommended read before using scans. The ``compyle.parallel``
-module provides a ``Scan`` class which can be used to develop and execute such
-scans. The scans can be run on GPUs using the OpenCL backend or on CPUs using
-either the OpenCL or Cython backend. A CUDA backend is not yet supported.
+building blocks to construct a number of parallel algorithms. These include
+but not are limited to sorting, polynomial evaluation, and tree operations.
+Blelloch's literature on prefix sums (`Prefix Sums and Their Applications
+<https://www.cs.cmu.edu/~guyb/papers/Ble93.pdf>`_) has many more examples and
+is a recommended read before using scans. The ``compyle.parallel`` module
+provides a ``Scan`` class which can be used to develop and execute such scans.
+The scans can be run on GPUs using the OpenCL or CUDA backend or on CPUs using
+either the OpenCL or Cython backend.
 
 The scan semantics in compyle are similar to those of the GenericScanKernel in
 PyOpenCL
