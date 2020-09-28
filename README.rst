@@ -1,4 +1,4 @@
-ComPyle: execute a subset of Python on HPC platforms
+Compyle: execute a subset of Python on HPC platforms
 ======================================================
 
 |Travis Status| |Appveyor Status| |Coverage Status| |Documentation Status|
@@ -14,38 +14,48 @@ ComPyle: execute a subset of Python on HPC platforms
 .. |Coverage Status| image:: https://codecov.io/gh/pypr/compyle/branch/master/graph/badge.svg
     :target: https://codecov.io/gh/pypr/compyle
 
-ComPyle allows users to execute a restricted subset of Python (almost similar
-to C) on a variety of HPC platforms. Currently we support multi-core execution
-using Cython, and OpenCL and CUDA for GPU devices.
+Compyle allows users to execute a restricted subset of Python (almost similar
+to C) on a variety of HPC platforms. Currently we support multi-core CPU
+execution using Cython, and for GPU devices we use OpenCL or CUDA.
 
 Users start with code implemented in a very restricted Python syntax, this code
 is then automatically transpiled, compiled and executed to run on either one CPU
-core, or multiple CPU cores (via OpenMP_) or on a GPU. ComPyle offers
+core, or multiple CPU cores (via OpenMP_) or on a GPU. Compyle offers
 source-to-source transpilation, making it a very convenient tool for writing HPC
 libraries.
 
-Some simple yet powerful parallel utilities are provided which can allow you to
-solve a remarkably large number of interesting HPC problems.
+Some simple yet powerful parallel utilities are provided which can allow you
+to solve a remarkably large number of interesting HPC problems. Compyle also
+features JIT transpilation making it easy to use.
 
-ComPyle also features JIT transpilation if you wish making it easy to use.
+Documentation and learning material is also available in the form of:
 
-Documentation is available at: https://compyle.readthedocs.io
+- Documentation at: https://compyle.readthedocs.io
 
-While ComPyle seems simple it is not a toy and is used heavily by the PySPH_
-project where ComPyle has its origins.
+- An introduction to compyle in the context of writing a parallel molecular
+  dynamics simulator is in our `SciPy 2020 paper
+  <http://conference.scipy.org/proceedings/scipy2020/compyle_pr_ab.html>`_.
+
+- `Compyle poster presentation <https://docs.google.com/presentation/d/1LS9XO5pQXz8G5d27RP5oWLFxUA-Fr5OvfVUGsgg86TQ/edit#slide=id.p>`_
+
+- You may also try Compyle online for free on a `Google Colab notebook`_.
+
+While Compyle seems simple it is not a toy and is used heavily by the PySPH_
+project where Compyle has its origins.
 
 .. _PySPH: https://github.com/pypr/pysph
+.. _Google Colab notebook: https://colab.research.google.com/drive/1SGRiArYXV1LEkZtUeg9j0qQ21MDqQR2U?usp=sharing
 
 
 Installation
 -------------
 
-ComPyle is itself pure Python but depends on numpy_ and requires either Cython_
-or PyOpenCL_ or PyCUDA_ along with the respective backends of a C/C++ compiler,
-OpenCL and CUDA. If you are only going to execute code on a CPU then all you
-need is Cython.
+Compyle is itself largely pure Python but depends on numpy_ and requires
+either Cython_ or PyOpenCL_ or PyCUDA_ along with the respective backends of a
+C/C++ compiler, OpenCL and CUDA. If you are only going to execute code on a
+CPU then all you need is Cython.
 
-You should be able to install ComPyle by doing::
+You should be able to install Compyle by doing::
 
   $ pip install compyle
 
@@ -95,3 +105,5 @@ Examples
 
 Some simple examples and benchmarks are available in the `examples
 <https://github.com/pypr/compyle/tree/master/examples>`_ directory.
+
+You may also run these examples on the `Google Colab notebook`_
