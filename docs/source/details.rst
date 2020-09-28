@@ -1,4 +1,4 @@
-Using ComPyle
+Using Compyle
 ==============
 
 In this section we provide more details on the compyle package and how it can be
@@ -28,12 +28,12 @@ developed using a test-driven approach. In fact, a good place to see examples
 are the tests.
 
 We now go into the details of each of these so as to provide a high-level
-overview of what can be done with ComPyle.
+overview of what can be done with Compyle.
 
 Annotating functions
 ---------------------
 
-The first step in getting started using ComPyle is to annotate your functions and
+The first step in getting started using Compyle is to annotate your functions and
 also declare variables in code.
 
 Annotation is provided by a simple decorator, called ``annotate``. One can
@@ -100,7 +100,7 @@ could potentially pass instances/structs to a function. We will discuss this
 later but all of the basic types discussed above are all instances of
 ``KnownType``.
 
-ComPyle actually supports Python3 style annotations but only for the function
+Compyle actually supports Python3 style annotations but only for the function
 arguments and NOT for the local variables. The only caveat is you must use the
 types in ``compyle.types``, i.e. you must use ``KnownType`` instances as the
 types for things to work.
@@ -108,7 +108,7 @@ types for things to work.
 JIT transpilation
 -----------------
 
-ComPyle also support just-in-time transpilation when annotations of a function
+Compyle also support just-in-time transpilation when annotations of a function
 are not provided. These functions are annotated at runtime when the
 call arguments are passed. The generated kernel and annotated functions
 are then cached with the types of the call arguments as key. Thus,
@@ -267,7 +267,7 @@ We have a simple approach for this which we discuss later. We call this an
 Common parallel algorithms
 ---------------------------
 
-ComPyle provides a few very powerful parallel algorithms. These are all directly
+Compyle provides a few very powerful parallel algorithms. These are all directly
 motivated by Andreas Kloeckner's PyOpenCL_ package. On the GPU they are
 wrappers on top of the functionality provided there. These algorithms make it
 possible to implement scalable algorithms for a variety of common numerical
@@ -519,6 +519,36 @@ scans in compyle:
    using ``a + b`` as the scan expression in compyle is equivalent to using
    ``(across_seg_boundary ? b : a + b)`` in PyOpenCL.
 
+
+Debugging
+----------
+
+Debugging can be a bit difficult with multiple different architectures and
+backends. One convenience that compyle provides is that the generated sources
+can be inspected. All the parallel algorithms (``Elementwise, Reduction,
+Scan``) provide a ``.source`` or ``.all_source`` attribute that contains the
+source.  For example say you have the following::
+
+  e = Elementwise(axpb, backend=backend)
+  e(x, y, a, b)
+
+You can examine the source generated for your functions using::
+
+  e.source
+
+This is probably most useful for end users. For those more curious, all of the
+source generated and used for the complete elementwise (or other) parallel
+algorithm can be seen using::
+
+  e.all_source
+
+This code can be rather long and difficult to read so use this only if you
+really need to see the underlying code from PyOpenCL or PyCUDA. On the GPU
+this will often include multiple kernels as well. Note that on CUDA the
+``all_source`` does not show all of the sources as PyCUDA currently does not
+make it easy to inspect the code.
+
+
 Abstracting out arrays
 -----------------------
 
@@ -539,7 +569,7 @@ Choice of backend and configuration
 ------------------------------------
 
 The ``compyle.config`` module provides a simple ``Configuration`` class that
-is used internally in ComPyle to set things like the backend (Cython,
+is used internally in Compyle to set things like the backend (Cython,
 OpenCL/CUDA), and some common options like profiling, turning on OpenMP, using
 double on the GPU etc.  Here is an example of the various options::
 
@@ -753,7 +783,7 @@ memory is ``work_group_size * sizeof(double) * 1``. This is convenient as very
 often the exact work group size is not known.
 
 A more complex and meaningful example is the ``vm_kernel.py`` example that is
-included with ComPyle.
+included with Compyle.
 
 
 ``Cython``
@@ -801,7 +831,7 @@ straight-forward Python analog or implementation. They are implemented as
 Externs. This functionality allows us to link to external code opening up many
 interesting possibilities.
 
-Note that as far as ComPyle is concerned, we need to know if a function needs to
+Note that as far as Compyle is concerned, we need to know if a function needs to
 be wrapped or somehow injected. Externs offer us a way to cleanly inject
 external function definitions and use them. This is useful for example when
 you need to include an external CUDA library.
@@ -834,7 +864,7 @@ until we figure out a good test/example for this. The ``code`` method returns
 a suitable line of code inserted into the generated code. Note that in this
 case it just performs a suitable import.
 
-Thus, with this feature we are able to connect ComPyle with other libraries.
+Thus, with this feature we are able to connect Compyle with other libraries.
 This functionality will probably evolve a little more as we gain more experience
 linking with other libraries. However, we have a clean mechanism for doing so
 already in-place.

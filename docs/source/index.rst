@@ -1,14 +1,16 @@
-.. ComPyle documentation master file, created by
+.. Compyle documentation master file, created by
    sphinx-quickstart on Sun Dec  2 14:26:18 2018.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to ComPyle's documentation!
+Welcome to Compyle's documentation!
 ===================================
 
-ComPyle allows users to execute a restricted subset of Python (almost similar
-to C) on a variety of HPC platforms. Currently we support multi-core execution
-using Cython, and OpenCL and CUDA for GPU devices.
+Compyle allows users to execute a restricted subset of Python (almost similar
+to C) on a variety of HPC platforms. Currently we support multi-core CPU
+execution using Cython, and support GPU devices using OpenCL and CUDA.
+
+You can try Compyle online on a `Google Colab notebook <https://colab.research.google.com/drive/1SGRiArYXV1LEkZtUeg9j0qQ21MDqQR2U?usp=sharing>`_.
 
 .. toctree::
    :maxdepth: 2
