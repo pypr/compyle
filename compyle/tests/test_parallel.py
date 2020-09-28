@@ -553,8 +553,8 @@ class TestParallelUtilsJIT(ParallelUtilsBase, unittest.TestCase):
         y.pull()
         self.assertTrue(np.allclose(y.data, a * np.sin(x.data) + b))
 
-        self.assertTrue(len(e.source) > 100)
-        self.assertTrue(len(e.all_source) > 100)
+        self.assertTrue(len(e.source) > 100, e.source)
+        self.assertTrue(len(e.all_source) > 100, e.all_source)
         if backend != 'cuda':
             self.assertTrue(len(e.all_source) > len(e.source))
 
@@ -587,7 +587,7 @@ class TestParallelUtilsJIT(ParallelUtilsBase, unittest.TestCase):
         self.assertAlmostEqual(result, 0.5, 6)
 
         self.assertTrue(len(r.source) > 100)
-        self.assertTrue(len(r.all_source) > 100)
+        self.assertTrue(len(r.all_source) > 100, r.all_source)
         if backend != 'cuda':
             self.assertTrue(len(r.all_source) > len(r.source))
 
@@ -664,8 +664,8 @@ class TestParallelUtilsJIT(ParallelUtilsBase, unittest.TestCase):
 
         # Then
         np.testing.assert_equal(expect, result)
-        self.assertTrue(len(scan.source) > 100)
-        self.assertTrue(len(scan.all_source) > 100)
+        self.assertTrue(len(scan.source) > 100, scan.source)
+        self.assertTrue(len(scan.all_source) > 100, scan.all_source)
         if backend != 'cuda':
             self.assertTrue(len(scan.all_source) > len(scan.source))
 
