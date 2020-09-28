@@ -293,6 +293,8 @@ class ElementwiseJIT(parallel.ElementwiseBase):
         self.func = func
         self._config = get_config()
         self.cython_gen = CythonGenerator()
+        self.source = '# Code jitted, call the function to generate the code.'
+        self.all_source = self.source
         if backend == 'opencl':
             from .opencl import get_context, get_queue
             self.queue = get_queue()
@@ -369,6 +371,8 @@ class ReductionJIT(parallel.ReductionBase):
             self.neutral = neutral
         self._config = get_config()
         self.cython_gen = CythonGenerator()
+        self.source = '# Code jitted, call the function to generate the code.'
+        self.all_source = self.source
         if backend == 'opencl':
             from .opencl import get_context, get_queue
             self.queue = get_queue()
@@ -450,6 +454,8 @@ class ScanJIT(parallel.ScanBase):
         else:
             self.neutral = neutral
         self._config = get_config()
+        self.source = '# Code jitted, call the function to generate the code.'
+        self.all_source = self.source
         self.cython_gen = CythonGenerator()
         if backend == 'opencl':
             from .opencl import get_context, get_queue
