@@ -471,7 +471,8 @@ class ElementwiseBase(object):
             )
             # only code we generate is saved here.
             self.source = "\n".join([cluda_preamble, preamble])
-            self.all_source = knl.get_kernel(False)[0].program.source
+            all_source = knl.get_kernel(False)[0].program.source
+            self.all_source = all_source or self.source
             return knl
         elif self.backend == 'cuda':
             py_data, c_data = self.cython_gen.get_func_signature(self.func)
@@ -687,12 +688,15 @@ class ReductionBase(object):
             )
             # only code we generate is saved here.
             self.source = "\n".join([cluda_preamble, preamble])
-            self.all_source = "\n".join([
-                "// ------ stage 1 -----",
-                knl.stage_1_inf.source,
-                "// ------ stage 2 -----",
-                knl.stage_2_inf.source,
-            ])
+            if knl.stage_1_inf.source:
+                self.all_source = "\n".join([
+                    "// ------ stage 1 -----",
+                    knl.stage_1_inf.source,
+                    "// ------ stage 2 -----",
+                    knl.stage_2_inf.source,
+                ])
+            else:
+                self.all_source = self.source
             return knl
         elif self.backend == 'cuda':
             if self.func is not None:
@@ -1100,14 +1104,17 @@ class ScanBase(object):
             preamble=preamble
         )
         self.source = preamble
-        self.all_source = '\n'.join([
-            '// ----- Level 1 ------',
-            knl.first_level_scan_info.kernel.program.source,
-            '// ----- Level 2 ------',
-            knl.second_level_scan_info.kernel.program.source,
-            '// ----- Final output ------',
-            knl.final_update_info.kernel.program.source,
-        ])
+        if knl.first_level_scan_info.kernel.program.source:
+            self.all_source = '\n'.join([
+                '// ----- Level 1 ------',
+                knl.first_level_scan_info.kernel.program.source,
+                '// ----- Level 2 ------',
+                knl.second_level_scan_info.kernel.program.source,
+                '// ----- Final output ------',
+                knl.final_update_info.kernel.program.source,
+            ])
+        else:
+            self.all_source = self.source
         return knl
 
     def _generate_cuda_kernel(self, declarations=None):

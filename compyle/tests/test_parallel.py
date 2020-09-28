@@ -555,8 +555,7 @@ class TestParallelUtilsJIT(ParallelUtilsBase, unittest.TestCase):
 
         self.assertTrue(len(e.source) > 100, e.source)
         self.assertTrue(len(e.all_source) > 100, e.all_source)
-        if backend != 'cuda':
-            self.assertTrue(len(e.all_source) > len(e.source))
+        self.assertTrue(len(e.all_source) >= len(e.source))
 
     def _check_elementwise_with_constant(self, backend):
         # Given
@@ -588,8 +587,7 @@ class TestParallelUtilsJIT(ParallelUtilsBase, unittest.TestCase):
 
         self.assertTrue(len(r.source) > 100)
         self.assertTrue(len(r.all_source) > 100, r.all_source)
-        if backend != 'cuda':
-            self.assertTrue(len(r.all_source) > len(r.source))
+        self.assertTrue(len(r.all_source) >= len(r.source))
 
     def _check_reduction_min(self, backend):
         x = np.linspace(0, 1, 1000) / 1000
@@ -666,8 +664,7 @@ class TestParallelUtilsJIT(ParallelUtilsBase, unittest.TestCase):
         np.testing.assert_equal(expect, result)
         self.assertTrue(len(scan.source) > 100, scan.source)
         self.assertTrue(len(scan.all_source) > 100, scan.all_source)
-        if backend != 'cuda':
-            self.assertTrue(len(scan.all_source) > len(scan.source))
+        self.assertTrue(len(scan.all_source) >= len(scan.source))
 
     def _test_large_scan(self, backend):
         # Given
