@@ -6,7 +6,7 @@ from pytest import importorskip
 
 from ..config import get_config, use_config
 from ..array import wrap, zeros
-from ..types import annotate
+from ..types import annotate, declare
 from ..parallel import Elementwise, Reduction, Scan
 from ..low_level import atomic_inc
 from .test_jit import g
@@ -94,10 +94,6 @@ class ParallelUtilsBase(object):
     def test_scan_works_cython_parallel(self):
         with use_config(use_openmp=True):
             self._test_scan(backend='cython')
-
-    def test_large_scan_works_cython_parallel(self):
-        with use_config(use_openmp=True):
-            self._test_large_scan(backend='cython')
 
     def test_large_scan_works_cython_parallel(self):
         with use_config(use_openmp=True):
@@ -238,6 +234,9 @@ class TestParallelUtils(ParallelUtilsBase, unittest.TestCase):
         # Then
         y.pull()
         self.assertTrue(np.allclose(y.data, a * np.sin(x.data) + b))
+        self.assertTrue(len(e.source) > 100)
+        self.assertTrue(len(e.all_source) > 100)
+        self.assertTrue(len(e.all_source) >= len(e.source))
 
     def _check_elementwise_with_constant(self, backend):
         # Given
@@ -266,6 +265,10 @@ class TestParallelUtils(ParallelUtilsBase, unittest.TestCase):
 
         # Then
         self.assertAlmostEqual(result, 0.5, 6)
+
+        self.assertTrue(len(r.source) > 100)
+        self.assertTrue(len(r.all_source) > 100)
+        self.assertTrue(len(r.all_source) >= len(r.source))
 
     def _check_reduction_min(self, backend):
         x = np.linspace(0, 1, 1000) / 1000
@@ -338,6 +341,10 @@ class TestParallelUtils(ParallelUtilsBase, unittest.TestCase):
 
         # Then
         np.testing.assert_equal(expect, result)
+
+        self.assertTrue(len(scan.source) > 100)
+        self.assertTrue(len(scan.all_source) > 100)
+        self.assertTrue(len(scan.all_source) >= len(scan.source))
 
     def _test_large_scan(self, backend):
         # Given
@@ -543,6 +550,10 @@ class TestParallelUtilsJIT(ParallelUtilsBase, unittest.TestCase):
         y.pull()
         self.assertTrue(np.allclose(y.data, a * np.sin(x.data) + b))
 
+        self.assertTrue(len(e.source) > 100, e.source)
+        self.assertTrue(len(e.all_source) > 100, e.all_source)
+        self.assertTrue(len(e.all_source) >= len(e.source))
+
     def _check_elementwise_with_constant(self, backend):
         # Given
         @annotate
@@ -570,6 +581,10 @@ class TestParallelUtilsJIT(ParallelUtilsBase, unittest.TestCase):
 
         # Then
         self.assertAlmostEqual(result, 0.5, 6)
+
+        self.assertTrue(len(r.source) > 100)
+        self.assertTrue(len(r.all_source) > 100, r.all_source)
+        self.assertTrue(len(r.all_source) >= len(r.source))
 
     def _check_reduction_min(self, backend):
         x = np.linspace(0, 1, 1000) / 1000
@@ -644,6 +659,9 @@ class TestParallelUtilsJIT(ParallelUtilsBase, unittest.TestCase):
 
         # Then
         np.testing.assert_equal(expect, result)
+        self.assertTrue(len(scan.source) > 100, scan.source)
+        self.assertTrue(len(scan.all_source) > 100, scan.all_source)
+        self.assertTrue(len(scan.all_source) >= len(scan.source))
 
     def _test_large_scan(self, backend):
         # Given

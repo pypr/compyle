@@ -9,7 +9,7 @@ from .ext_module import ExtModule
 from .extern import Extern
 from .low_level import Kernel, LocalMem, Cython
 from .parallel import (
-    Elementwise, Reduction, elementwise
+    Elementwise, Reduction, Scan, elementwise
 )
 from .translator import (
     CConverter, CStructHelper, OpenCLConverter, detect_type, ocl_detect_type,

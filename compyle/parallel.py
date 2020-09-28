@@ -11,7 +11,6 @@ from textwrap import wrap
 
 from mako.template import Template
 import numpy as np
-import time
 
 from .config import get_config
 from .profile import profile
@@ -412,6 +411,10 @@ class ElementwiseBase(object):
         self._config = get_config()
         self.cython_gen = CythonGenerator()
         self.queue = None
+        # This is the source generated for the user code.
+        self.source = '# Source not yet generated.'
+        # This is all the source code used for the elementwise.
+        self.all_source = '# Source not yet generated.'
         self.c_func = self._generate()
 
     def _generate(self, declarations=None):
@@ -433,8 +436,12 @@ class ElementwiseBase(object):
                     self.func, 'is_serial', False),
                 get_parallel_range=get_parallel_range
             )
+            # This is the user code source.
+            self.source = self.tp.get_code()
             self.tp.add_code(src)
             self.tp.compile()
+            # All the source code for the elementwise
+            self.all_source = self.tp.source
             return getattr(self.tp.mod, 'py_' + self.name[7:])
         elif self.backend == 'opencl':
             py_data, c_data = self.cython_gen.get_func_signature(self.func)
@@ -462,6 +469,10 @@ class ElementwiseBase(object):
                 operation=expr,
                 preamble="\n".join([cluda_preamble, preamble])
             )
+            # only code we generate is saved here.
+            self.source = "\n".join([cluda_preamble, preamble])
+            all_source = knl.get_kernel(False)[0].program.source
+            self.all_source = all_source or self.source
             return knl
         elif self.backend == 'cuda':
             py_data, c_data = self.cython_gen.get_func_signature(self.func)
@@ -487,6 +498,10 @@ class ElementwiseBase(object):
                 operation=expr,
                 preamble="\n".join([cluda_preamble, preamble])
             )
+            # only code we generate is saved here.
+            self.source = cluda_preamble + preamble
+            # FIXME: it is difficult to get the sources from pycuda.
+            self.all_source = self.source
             return knl
 
     def _correct_opencl_address_space(self, c_data):
@@ -551,6 +566,9 @@ class Elementwise(object):
     def __getattr__(self, name):
         return getattr(self.elementwise, name)
 
+    def __dir__(self):
+        return sorted(dir(self.elementwise) + ['elementwise'])
+
     def __call__(self, *args, **kwargs):
         self.elementwise(*args, **kwargs)
 
@@ -588,6 +606,10 @@ class ReductionBase(object):
         self._config = get_config()
         self.cython_gen = CythonGenerator()
         self.queue = None
+        # This is the source generated for the user code.
+        self.source = '# Source not yet generated.'
+        # This is all the source code used.
+        self.all_source = '# Source not yet generated.'
         self.c_func = self._generate()
 
     def _generate(self, declarations=None):
@@ -621,8 +643,11 @@ class ReductionBase(object):
                 openmp=self._config.use_openmp,
                 get_parallel_range=get_parallel_range
             )
+            # This is the user code source.
+            self.source = self.tp.get_code()
             self.tp.add_code(src)
             self.tp.compile()
+            self.all_source = self.tp.source
             return getattr(self.tp.mod, 'py_' + self.name)
         elif self.backend == 'opencl':
             if self.func is not None:
@@ -661,6 +686,17 @@ class ReductionBase(object):
                 arguments=arguments,
                 preamble="\n".join([cluda_preamble, preamble])
             )
+            # only code we generate is saved here.
+            self.source = "\n".join([cluda_preamble, preamble])
+            if knl.stage_1_inf.source:
+                self.all_source = "\n".join([
+                    "// ------ stage 1 -----",
+                    knl.stage_1_inf.source,
+                    "// ------ stage 2 -----",
+                    knl.stage_2_inf.source,
+                ])
+            else:
+                self.all_source = self.source
             return knl
         elif self.backend == 'cuda':
             if self.func is not None:
@@ -697,6 +733,10 @@ class ReductionBase(object):
                 arguments=arguments,
                 preamble="\n".join([cluda_preamble, preamble])
             )
+            # only code we generate is saved here.
+            self.source = cluda_preamble + preamble
+            # FIXME: it is difficult to get the sources from pycuda.
+            self.all_source = self.source
             return knl
 
     def _correct_return_type(self, c_data):
@@ -780,6 +820,9 @@ class Reduction(object):
                                           neutral=neutral,
                                           backend=backend)
 
+    def __dir__(self):
+        return sorted(dir(self.reduction) + ['reduction'])
+
     def __getattr__(self, name):
         return getattr(self.reduction, name)
 
@@ -812,6 +855,10 @@ class ScanBase(object):
         else:
             self.neutral = neutral
         self._config = get_config()
+        # This is the source generated for the user code.
+        self.source = '# Source not yet generated.'
+        # This is all the source code used for the elementwise.
+        self.all_source = '# Source not yet generated.'
         self.cython_gen = CythonGenerator()
         self.queue = None
         self.c_func = self._generate()
@@ -895,7 +942,6 @@ class ScanBase(object):
             all_c_data[1].extend(self._filter_ignored(c_data[1], select))
 
     def _generate_cython_code(self, declarations=None):
-        name = self.name
         all_py_data = [[], []]
         all_c_data = [[], []]
 
@@ -911,7 +957,9 @@ class ScanBase(object):
         # Process segment function
         use_segment = True if self.is_segment_func is not None else False
         py_data, c_data, segment_expr = self._wrap_cython_code(
-            self.is_segment_func, func_type='segment', declarations=declarations)
+            self.is_segment_func, func_type='segment',
+            declarations=declarations
+        )
         self._append_cython_arg_data(all_py_data, all_c_data, py_data, c_data)
 
         # Process output expression
@@ -963,8 +1011,10 @@ class ScanBase(object):
             is_segment_start_expr=segment_expr,
             complex_map=self.complex_map
         )
+        self.source = self.tp.get_code()
         self.tp.add_code(src)
         self.tp.compile()
+        self.all_source = self.tp.source
         return getattr(self.tp.mod, 'py_' + self.name)
 
     def _wrap_ocl_function(self, func, func_type=None, declarations=None):
@@ -1053,6 +1103,18 @@ class ScanBase(object):
             is_segment_start_expr=segment_expr,
             preamble=preamble
         )
+        self.source = preamble
+        if knl.first_level_scan_info.kernel.program.source:
+            self.all_source = '\n'.join([
+                '// ----- Level 1 ------',
+                knl.first_level_scan_info.kernel.program.source,
+                '// ----- Level 2 ------',
+                knl.second_level_scan_info.kernel.program.source,
+                '// ----- Final output ------',
+                knl.final_update_info.kernel.program.source,
+            ])
+        else:
+            self.all_source = self.source
         return knl
 
     def _generate_cuda_kernel(self, declarations=None):
@@ -1073,6 +1135,9 @@ class ScanBase(object):
             is_segment_start_expr=segment_expr,
             preamble=preamble
         )
+        self.source = preamble
+        # FIXME: Difficult to get the pycuda sources
+        self.all_source = self.source
         return knl
 
     def _add_address_space(self, arg):
@@ -1113,11 +1178,13 @@ class ScanBase(object):
     def __call__(self, **kwargs):
         c_args_dict = {k: self._massage_arg(x) for k, x in kwargs.items()}
         if self._get_backend_key() in self.output_func.arg_keys:
-            output_arg_keys = self.output_func.arg_keys[self._get_backend_key()]
+            output_arg_keys = self.output_func.arg_keys[
+                self._get_backend_key()
+            ]
         else:
             raise ValueError("No kernel arguments found for backend = %s, "
-                              "use_openmp = %s, use_double = %s" %
-                                      self._get_backend_key())
+                             "use_openmp = %s, use_double = %s" %
+                             self._get_backend_key())
 
         if self.backend == 'cython':
             size = len(c_args_dict[output_arg_keys[1]])
@@ -1164,6 +1231,9 @@ class Scan(object):
                                 dtype=dtype, neutral=neutral,
                                 complex_map=complex_map,
                                 backend=backend)
+
+    def __dir__(self):
+        return sorted(dir(self.scan) + ['scan'])
 
     def __getattr__(self, name):
         return getattr(self.scan, name)
