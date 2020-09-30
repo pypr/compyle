@@ -1,3 +1,14 @@
+0.7
+~~~~
+
+* Release date: 1st October, 2020.
+* Add convenient option to profile execution of code.
+* Add a convenient argument parser for scripts.
+* Add easy way to see generated sources.
+* Fix bug with installation of previous version.
+* Fix several bugs and issues.
+* Update the documentation.
+
 0.6
 ~~~~
 
