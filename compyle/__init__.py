@@ -1,2 +1,2 @@
 # See PEP 440 for more on suitable version numbers.
-__version__ = '0.7.dev0'
+__version__ = '0.8.dev0'
