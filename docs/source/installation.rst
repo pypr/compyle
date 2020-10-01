@@ -17,6 +17,24 @@ that is compatible with your Python installation. In addition, if you need to
 use OpenMP you will need to make sure your compiler is compatible with that.
 Some additional information on this is included below.
 
+Installing the bleeding edge
+----------------------------
+
+Note that if you want the latest bleeding edge of compyle, clone the
+repository and install compyle like so::
+
+  $ git clone https://github.com/pypr/compyle
+  $ cd compyle
+  $ python setup.py develop
+  # Or
+  $ pip install -e .
+
+If you just want the latest version and do not want to clone the repository,
+you can also do::
+
+  $ pip install https://github.com/pypr/compyle/zipball/master
+
+
 .. _PyOpenCL: https://documen.tician.de/pyopencl/
 .. _OpenCL: https://www.khronos.org/opencl/
 .. _Cython: http://www.cython.org
@@ -36,12 +54,34 @@ with (on apt-compatible systems)::
     $ sudo apt-get install libgomp1
 
 
-Setting up on MacOS
----------------------
+Installation with conda on MacOS
+---------------------------------
 
-Ensure that you have gcc or clang installed by installing XCode. See `this
-<http://stackoverflow.com/questions/12228382/after-install-xcode-where-is-clang>`_
-if you installed XCode but can't find clang or gcc.
+Recent conda_ packages make the process of setup very easy on MacOS assuming
+that you have the `XCode command line utilities`_ installed. Please make sure
+you install this.
+
+For example with conda-forge_ the following creates a new Python 3.8
+environment with compyle installed and working with both OpenMP and OpenCL::
+
+  $ conda create -c conda-forge -n py38 python=3.8 numpy pyopencl
+  $ conda activate py38 # or a suitable such invocation
+  $ pip install compyle
+
+Note that the above implicitly installs the ``llvm-openmp`` package in the
+environment which works out of the box with clang and provides OpenMP support.
+
+.. _conda: https://docs.conda.io/
+.. _conda-forge: https://conda-forge.org/
+.. _XCode command line utilities: http://stackoverflow.com/questions/12228382/after-install-xcode-where-is-clang
+
+
+Possible issues on MacOS
+--------------------------
+
+Ensure that you have gcc or clang installed by installing XCode. See
+installing `XCode command line utilities`_ if you installed XCode but can't
+find clang or gcc.
 
 If you are getting strange errors of the form::
 
@@ -62,17 +102,22 @@ in your default environment (``.bashrc`` for bash shells) so you do not have
 to do this every time.
 
 
+
 OpenMP on MacOS
 ~~~~~~~~~~~~~~~~
 
+These instructions are a bit old and only if you are not using conda as
+discussed above.
+
 The default clang compiler available on MacOS uses an LLVM backend and does
-not support OpenMP_. There are two ways to support OpenMP. The first involves
-installing the OpenMP support for clang. This can be done with brew_ using::
+not support OpenMP_ out of the box. There are two ways to support OpenMP. The
+first involves installing the OpenMP support for clang. This can be done with
+brew_ using::
 
   $ brew install libomp
 
 Once that is done, it should "just work". If you get strange errors, try
-setting the ``MACOSX_DEPLOYMENT_TARGET`` as shown above.
+setting the ``MACOSX_DEPLOYMENT_TARGET`` as shown in the previous section.
 
 Another option is to install GCC for MacOS available on brew_ using ::
 
@@ -121,3 +166,8 @@ documentation for PyOpenCL_ and PyCUDA_. Once those packages work correctly,
 you should be all set. Note that if you are only using OpenCL/CUDA you do not
 need to have Cython or a C/C++ compiler. Some features on CUDA require the use
 of the CuPy_ library.
+
+If you want to use OpenCL support, you will need to install the ``pyopencl``
+package (``conda install -c conda-forge pyopencl`` or ``pip install
+pyopencl``). For CUDA Support, you will need to install ``pycuda`` and
+``cupy``. Of course this assumes you have the required hardware for this.
