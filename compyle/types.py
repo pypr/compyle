@@ -1,6 +1,10 @@
 import ast
+import platform
 import sys
 import numpy as np
+
+
+BITS = platform.architecture()[0]
 
 
 def declare(type, num=1):
@@ -179,7 +183,7 @@ C_NP_TYPE_MAP = {
     'unsigned short': np.uint16
 }
 
-if sys.platform.startswith('win'):
+if sys.platform.startswith('win') or BITS.startswith('32bit'):
     NP_C_TYPE_MAP[np.dtype(np.int64)] = 'long long'
     NP_C_TYPE_MAP[np.dtype(np.uint64)] = 'unsigned long long'
     C_NP_TYPE_MAP['long long'] = np.int64
