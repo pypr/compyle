@@ -11,7 +11,7 @@ from .config import get_config
 from .cython_generator import CythonGenerator
 from .transpiler import Transpiler, BUILTINS
 from .types import (dtype_to_ctype, get_declare_info,
-                    dtype_to_knowntype, annotate)
+                    dtype_to_knowntype, annotate, BITS)
 from .extern import Extern
 from .utils import getsourcelines
 from .profile import profile
@@ -44,7 +44,7 @@ def get_ctype_from_arg(arg):
             return 'double'
         else:
             if arg > 2147483648:
-                return 'long'
+                return 'long long' if BITS.startswith('32') else 'long'
             else:
                 return 'int'
 
