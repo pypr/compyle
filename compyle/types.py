@@ -200,18 +200,6 @@ NP_TYPE_LIST = list(C_NP_TYPE_MAP.values())
 
 
 def dtype_to_ctype(dtype):
-    try:
-        # FIXME: pyopencl depency
-
-        from pyopencl.compyte.dtypes import \
-            dtype_to_ctype as dtype_to_ctype_pyopencl
-        ctype = dtype_to_ctype_pyopencl(dtype)
-    except ValueError:
-        pass
-    except ImportError:
-        pass
-    else:
-        return ctype
     dtype = np.dtype(dtype)
     return NP_C_TYPE_MAP[dtype]
 
