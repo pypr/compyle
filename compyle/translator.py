@@ -701,7 +701,7 @@ class CConverter(ast.NodeVisitor):
 
     def visit_Subscript(self, node):
         return '%s[%s]' % (
-            self.visit(node.value), self.visit(node.slice.value)
+            self.visit(node.value), self.visit(node.slice)
         )
 
     def visit_TryExcept(self, node):
