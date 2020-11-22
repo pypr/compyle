@@ -700,9 +700,14 @@ class CConverter(ast.NodeVisitor):
         return r'"%s"' % node.s
 
     def visit_Subscript(self, node):
-        return '%s[%s]' % (
-            self.visit(node.value), self.visit(node.slice)
-        )
+        if isinstance(node.slice,ast.Constant):#print('ast_constant_for py3.9')
+            return '%s[%s]' % (
+                self.visit(node.value), self.visit(node.slice)
+            )
+        else:
+            return '%s[%s]' % (
+                self.visit(node.value), self.visit(node.slice.value)
+            )
 
     def visit_TryExcept(self, node):
         self.error('Try/except not implemented.', node)
