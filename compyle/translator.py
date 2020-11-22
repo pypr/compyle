@@ -700,7 +700,7 @@ class CConverter(ast.NodeVisitor):
         return r'"%s"' % node.s
 
     def visit_Subscript(self, node):
-        if isinstance(node.slice,ast.Constant):#print('ast_constant_for py3.9')
+        if isinstance(node.slice,ast.Constant):  #'ast_constant_for py3.9'
             return '%s[%s]' % (
                 self.visit(node.value), self.visit(node.slice)
             )
