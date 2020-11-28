@@ -700,8 +700,12 @@ class CConverter(ast.NodeVisitor):
         return r'"%s"' % node.s
 
     def visit_Subscript(self, node):
+        if sys.version_info >= (3, 9):
+            sliceval = node.slice
+        else:
+            sliceval = node.slice.value
         return '%s[%s]' % (
-            self.visit(node.value), self.visit(node.slice.value)
+            self.visit(node.value), self.visit(sliceval)
         )
 
     def visit_TryExcept(self, node):
