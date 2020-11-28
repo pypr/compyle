@@ -925,7 +925,7 @@ class ScanBase(object):
             expr = '{name}_{modifier}({cargs})'.format(name=name, cargs=cargs,
                                                        modifier=func_type)
         else:
-            if func_type is 'input':
+            if func_type == 'input':
                 py_data, c_data, expr = self._default_cython_input_function()
             else:
                 py_data, c_data, expr = [], [], None
@@ -1032,7 +1032,7 @@ class ScanBase(object):
             arguments = self._filter_ignored(c_data[0], select)
             c_args = self._filter_ignored(c_data[1], select)
         else:
-            if func_type is 'input':
+            if func_type == 'input':
                 if self.backend == 'opencl':
                     arguments = ['__global %(type)s *input' %
                                  {'type': self.type}]
@@ -1147,7 +1147,7 @@ class ScanBase(object):
             return arg
 
     def _correct_opencl_address_space(self, c_data, func, func_type):
-        return_type = 'void' if func_type is 'output' else self.type
+        return_type = 'void' if func_type == 'output' else self.type
         code = self.tp.blocks[-1].code.splitlines()
         header_idx = 1
         for line in code:
