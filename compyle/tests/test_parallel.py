@@ -9,6 +9,7 @@ from ..array import wrap, zeros
 from ..types import annotate, declare
 from ..parallel import Elementwise, Reduction, Scan
 from ..low_level import atomic_inc
+from ..profile import get_flops_info, reset_flops_info
 from .test_jit import g
 
 MY_CONST = 42
@@ -17,6 +18,20 @@ MY_CONST = 42
 @annotate(x='int', return_='int')
 def external(x):
     return x
+
+
+@annotate(xi='double', return_='double')
+def external_flops(xi):
+    res = declare('double')
+    res = 0
+    for i in range(10):
+        res += external_flops2(xi)
+    return res
+
+
+@annotate(xi='double', return_='double')
+def external_flops2(xi):
+    return xi + 2
 
 
 class ParallelUtilsBase(object):
@@ -43,6 +58,26 @@ class ParallelUtilsBase(object):
     def test_elementwise_works_with_global_constant_cuda(self):
         importorskip('pycuda')
         self._check_elementwise_with_constant(backend='cuda')
+
+    def test_elementwise_count_flops_opencl(self):
+        importorskip('pyopencl')
+        self._check_elementwise_count_flops(backend='opencl')
+
+    def test_elementwise_count_flops_cuda(self):
+        importorskip('pycuda')
+        self._check_elementwise_count_flops(backend='cuda')
+
+    def test_elementwise_count_flops_with_external_funcs_opencl(self):
+        importorskip('pyopencl')
+        self._check_elementwise_count_flops_with_external_funcs(
+                backend='opencl'
+        )
+
+    def test_elementwise_count_flops_with_external_funcs_cuda(self):
+        importorskip('pycuda')
+        self._check_elementwise_count_flops_with_external_funcs(
+                backend='cuda'
+        )
 
     def test_reduction_works_without_map_cython(self):
         self._check_simple_reduction(backend='cython')
@@ -254,6 +289,46 @@ class TestParallelUtils(ParallelUtilsBase, unittest.TestCase):
         # Then
         x.pull()
         np.testing.assert_almost_equal(x.data, MY_CONST)
+
+    def _check_elementwise_count_flops(self, backend):
+        # Given
+        @annotate(i='int', x='doublep', y='doublep')
+        def axpb(i, x, y):
+            y[i] = 2 * x[i] + 3
+
+        x = np.zeros(100)
+        y = np.zeros(100)
+        x, y = wrap(x, y, backend=backend)
+
+        with use_config(count_flops=True):
+            # When
+            e = Elementwise(axpb, backend=backend)
+            e(x, y)
+
+            # Then
+            flops_info = get_flops_info()
+            assert flops_info['elwise_axpb']['flops'] == 200
+            reset_flops_info()
+
+    def _check_elementwise_count_flops_with_external_funcs(self, backend):
+        # Given
+        @annotate(i='int', x='doublep', y='doublep')
+        def axpb(i, x, y):
+            y[i] = 2 * external_flops(x[i])
+
+        x = np.zeros(100)
+        y = np.zeros(100)
+        x, y = wrap(x, y, backend=backend)
+
+        with use_config(count_flops=True):
+            # When
+            e = Elementwise(axpb, backend=backend)
+            e(x, y)
+
+            # Then
+            flops_info = get_flops_info()
+            assert flops_info['elwise_axpb']['flops'] == 2100
+            reset_flops_info()
 
     def _check_simple_reduction(self, backend):
         x = np.linspace(0, 1, 1000) / 1000
@@ -570,6 +645,46 @@ class TestParallelUtilsJIT(ParallelUtilsBase, unittest.TestCase):
         # Then
         x.pull()
         np.testing.assert_almost_equal(x.data, MY_CONST)
+
+    def _check_elementwise_count_flops(self, backend):
+        # Given
+        @annotate
+        def axpb(i, x, y):
+            y[i] = 2 * x[i] + 3
+
+        x = np.zeros(100)
+        y = np.zeros(100)
+        x, y = wrap(x, y, backend=backend)
+
+        with use_config(count_flops=True):
+            # When
+            e = Elementwise(axpb, backend=backend)
+            e(x, y)
+
+            # Then
+            flops_info = get_flops_info()
+            assert flops_info['elwise_axpb']['flops'] == 200
+            reset_flops_info()
+
+    def _check_elementwise_count_flops_with_external_funcs(self, backend):
+        # Given
+        @annotate
+        def axpb(i, x, y):
+            y[i] = 2 * external_flops(x[i])
+
+        x = np.zeros(100)
+        y = np.zeros(100)
+        x, y = wrap(x, y, backend=backend)
+
+        with use_config(count_flops=True):
+            # When
+            e = Elementwise(axpb, backend=backend)
+            e(x, y)
+
+            # Then
+            flops_info = get_flops_info()
+            assert flops_info['elwise_axpb']['flops'] == 2100
+            reset_flops_info()
 
     def _check_simple_reduction(self, backend):
         x = np.linspace(0, 1, 1000) / 1000

@@ -124,7 +124,7 @@ class CodeBlock(object):
 
 
 class Transpiler(object):
-    def __init__(self, backend='cython', incl_cluda=True):
+    def __init__(self, backend='cython', incl_cluda=True, count_flops=False):
         """Constructor.
 
         Parameters
@@ -159,7 +159,7 @@ class Transpiler(object):
 
         elif backend == 'opencl':
             from pyopencl._cluda import CLUDA_PREAMBLE
-            self._cgen = OpenCLConverter()
+            self._cgen = OpenCLConverter(count_flops=count_flops)
             cluda = ''
             if incl_cluda:
                 cluda = Template(text=CLUDA_PREAMBLE).render(
@@ -177,7 +177,7 @@ class Transpiler(object):
             ''')
         elif backend == 'cuda':
             from pycuda._cluda import CLUDA_PREAMBLE
-            self._cgen = CUDAConverter()
+            self._cgen = CUDAConverter(count_flops=count_flops)
             cluda = ''
             if incl_cluda:
                 cluda = Template(text=CLUDA_PREAMBLE).render(

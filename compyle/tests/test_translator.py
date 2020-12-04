@@ -5,6 +5,7 @@ import sys
 
 from ..config import get_config
 from ..types import annotate, declare
+from ..low_level import cast, address, atomic_inc
 from ..translator import (
     CConverter, CodeGenerationError, CStructHelper, KnownType,
     OpenCLConverter, CUDAConverter, py2c
@@ -1214,12 +1215,180 @@ WITHIN_KERNEL void f(long s_idx, GLOBAL_MEM double* s_p, long d_idx,
     assert code.strip() == expect.strip()
 
 
+def check_opencl_cuda_conversion_flops(converter_obj):
+    # Note that LID_0 etc. are predefined symbols when we include the CLUDA
+    # preamble, therefore should be known.
+    src = dedent('''
+    def f(i, s_p, d_idx, d_p, J=0, t=0.0, l=[0,0], xx=(0, 0)):
+        s_p[i] = LID_0*GID_0
+    ''')
+
+    # When
+    known_types = {'d_p': KnownType('GLOBAL_MEM int*'), 'i': KnownType('long')}
+    converter = converter_obj(known_types=known_types,
+                              count_flops=True)
+    code = converter.convert(src)
+    print(code)
+
+    # Then
+    expect = dedent('''
+WITHIN_KERNEL void f(long i, GLOBAL_MEM double* s_p, long d_idx, GLOBAL_MEM
+    int* d_p, long J, double t, double* l, double* xx, GLOBAL_MEM long*
+    cpy_flop_counter)
+{
+    s_p[i] = (LID_0 * GID_0);
+    cpy_flop_counter[${offset}] += 1;
+}
+    ''')
+    assert code.strip() == expect.strip()
+
+
+def check_opencl_cuda_conversion_flops_with_return_in_if(converter_obj):
+    # Note that LID_0 etc. are predefined symbols when we include the CLUDA
+    # preamble, therefore should be known.
+    src = dedent('''
+    def f(i, s_p, d_idx, d_p, J=0, t=0.0, l=[0,0], xx=(0, 0)):
+        s_p[i] = LID_0*GID_0 + 5
+        if d_idx < 10:
+            s_p[i] += 5 * LID_0
+            return d_idx * s_p[i]
+        s_p[i] += 5 * GID_0
+        return s_p[i]
+    ''')
+
+    # When
+    known_types = {'d_p': KnownType('GLOBAL_MEM int*'), 'i': KnownType('long')}
+    converter = converter_obj(known_types=known_types,
+                              count_flops=True)
+    code = converter.convert(src)
+    print(code)
+
+    # Then
+    expect = dedent('''
+WITHIN_KERNEL double f(long i, GLOBAL_MEM double* s_p, long d_idx, GLOBAL_MEM
+    int* d_p, long J, double t, double* l, double* xx, GLOBAL_MEM long*
+    cpy_flop_counter)
+{
+    s_p[i] = ((LID_0 * GID_0) + 5);
+    if ((d_idx < 10)) {
+        s_p[i] += (5 * LID_0);
+        cpy_flop_counter[${offset}] += 5;
+        return (d_idx * s_p[i]);
+    }
+    s_p[i] += (5 * GID_0);
+    cpy_flop_counter[${offset}] += 4;
+    return s_p[i];
+}
+    ''')
+    assert code.strip() == expect.strip()
+
+
+def check_opencl_cuda_conversion_flops_with_blocks(converter_obj):
+    # Note that LID_0 etc. are predefined symbols when we include the CLUDA
+    # preamble, therefore should be known.
+    src = dedent('''
+    def f(i, s_p, d_idx, d_p, J=0, t=0.0, l=[0,0], xx=(0, 0)):
+        s_p[i] = LID_0*GID_0
+        for j in range(10):
+            if d_p[i] < 2 * t * J:
+                s_p[i] += d_idx * t * GDIM_0
+            s_p[i] += LDIM_0 * 10 * 20
+    ''')
+
+    # When
+    known_types = {'d_p': KnownType('GLOBAL_MEM int*'), 'i': KnownType('long')}
+    converter = converter_obj(known_types=known_types,
+                              count_flops=True)
+    code = converter.convert(src)
+    print(code)
+
+    # Then
+    expect = dedent('''
+WITHIN_KERNEL void f(long i, GLOBAL_MEM double* s_p, long d_idx, GLOBAL_MEM
+    int* d_p, long J, double t, double* l, double* xx, GLOBAL_MEM long*
+    cpy_flop_counter)
+{
+    s_p[i] = (LID_0 * GID_0);
+    for (long j=0; j<10; j+=1) {
+        if ((d_p[i] < ((2 * t) * J))) {
+            s_p[i] += ((d_idx * t) * GDIM_0);
+            cpy_flop_counter[${offset}] += 3;
+        }
+        s_p[i] += ((LDIM_0 * 10) * 20);
+        cpy_flop_counter[${offset}] += 5;
+    }
+    cpy_flop_counter[${offset}] += 1;
+}
+    ''')
+    assert code.strip() == expect.strip()
+
+
+def check_opencl_cuda_conversion_flops_with_return(converter_obj):
+    # Note that LID_0 etc. are predefined symbols when we include the CLUDA
+    # preamble, therefore should be known.
+    src = dedent('''
+    def f(i, s_p, d_idx, d_p, J=0, t=0.0, l=[0,0], xx=(0, 0)):
+        return s_p[i] * d_idx
+    ''')
+
+    # When
+    known_types = {'d_p': KnownType('GLOBAL_MEM int*'), 'i': KnownType('long')}
+    converter = converter_obj(known_types=known_types,
+                              count_flops=True)
+    code = converter.convert(src)
+    print(code)
+
+    # Then
+    expect = dedent('''
+WITHIN_KERNEL double f(long i, GLOBAL_MEM double* s_p, long d_idx, GLOBAL_MEM
+    int* d_p, long J, double t, double* l, double* xx, GLOBAL_MEM long*
+    cpy_flop_counter)
+{
+    cpy_flop_counter[${offset}] += 1;
+    return (s_p[i] * d_idx);
+}
+    ''')
+    assert code.strip() == expect.strip()
+
+
 def test_cuda_conversion():
     check_opencl_cuda_conversion(CUDAConverter)
 
 
 def test_opencl_conversion():
     check_opencl_cuda_conversion(OpenCLConverter)
+
+
+def test_opencl_conversion_flops():
+    check_opencl_cuda_conversion_flops(OpenCLConverter)
+
+
+def test_cuda_conversion_flops():
+    check_opencl_cuda_conversion_flops(CUDAConverter)
+
+
+def test_opencl_conversion_flops_for():
+    check_opencl_cuda_conversion_flops_with_blocks(OpenCLConverter)
+
+
+def test_cuda_conversion_flops_for():
+    check_opencl_cuda_conversion_flops_with_blocks(CUDAConverter)
+
+
+def test_opencl_conversion_flops_return():
+    check_opencl_cuda_conversion_flops_with_return(OpenCLConverter)
+
+
+def test_cuda_conversion_flops_return():
+    check_opencl_cuda_conversion_flops_with_return(CUDAConverter)
+
+
+def test_opencl_conversion_flops_return_in_if():
+    check_opencl_cuda_conversion_flops_with_return_in_if(OpenCLConverter)
+
+
+def test_cuda_conversion_flops_return_in_if():
+    check_opencl_cuda_conversion_flops_with_return_in_if(CUDAConverter)
 
 
 def test_opencl_class():

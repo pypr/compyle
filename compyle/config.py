@@ -15,6 +15,7 @@ class Config(object):
         self._use_double = None
         self._omp_schedule = None
         self._profile = None
+        self._count_flops = None
         self._use_local_memory = None
         self._wgs = None
         self._suppress_warnings = None
@@ -127,6 +128,19 @@ class Config(object):
         self._profile = value
 
     def _profile_default(self):
+        return False
+
+    @property
+    def count_flops(self):
+        if self._count_flops is None:
+            self._count_flops = self._count_flops_default()
+        return self._count_flops
+
+    @count_flops.setter
+    def count_flops(self, value):
+        self._count_flops = value
+
+    def _count_flops_default(self):
         return False
 
     @property
