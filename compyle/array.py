@@ -618,7 +618,8 @@ def cumsum(ary, backend=None, out=None):
         cumsum_scan(ary=ary, out=out)
         return out
     elif backend == 'cython':
-        output = np.cumsum(ary, out=out)
+        _out = out.dev if out is not None else out
+        output = np.cumsum(ary.dev, out=_out)
         return wrap_array(output, backend)
 
 

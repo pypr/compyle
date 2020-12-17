@@ -1,9 +1,9 @@
 """ Utils for profiling kernels
 """
 
-import time
 from contextlib import contextmanager
 from collections import defaultdict
+import time
 from .config import get_config
 
 
@@ -31,22 +31,38 @@ def profile_ctx(name):
     _record_profile(name, end - start)
 
 
-def profile(method):
+def profile(method=None, name=None):
     """Decorator for profiling a function. Can be used as follows::
 
     @profile
     def f():
         pass
 
-    If used on a class method, it will use self.name as the
-    name for recording the profile. If 'name' attribute is not available, it
-    will use the method name
+
+    If explicitly passed a name, with @profile(name='some name'), it will use
+    the given name. Otherwise, if the function is a class method, and the class
+    has a `self.name` attribute, it will use that. Otherwise, it will use the
+    method's qualified name to record the profile.
+
     """
-    def wrapper(*args, **kwargs):
-        self = args[0] if len(args) else None
-        with profile_ctx(getattr(self, "name", method.__name__)):
-            return method(*args, **kwargs)
-    return wrapper
+    def make_wrapper(method):
+        def wrapper(*args, **kwargs):
+            self = args[0] if len(args) else None
+            if name is None:
+                if hasattr(self, method.__name__) and hasattr(self, 'name'):
+                    p_name = self.name
+                else:
+                    p_name = getattr(method, '__qualname__', method.__name__)
+            else:
+                p_name = name
+            with profile_ctx(p_name):
+                return method(*args, **kwargs)
+        wrapper.__doc__ = method.__doc__
+        return wrapper
+    if method is None:
+        return make_wrapper
+    else:
+        return make_wrapper(method)
 
 
 def get_profile_info():
@@ -58,8 +74,11 @@ def print_profile():
     global _profile_info
     profile_data = sorted(_profile_info.items(), key=lambda x: x[1]['time'],
                           reverse=True)
+    hr = '-'*70
+    print(hr)
     if len(_profile_info) == 0:
         print("No profiling information available")
+        print(hr)
         return
     print("Profiling info:")
     print("{:<40} {:<10} {:<10}".format('Function', 'N calls', 'Time'))
@@ -71,6 +90,7 @@ def print_profile():
             data['time']))
         tot_time += data['time']
     print("Total profiled time: %g secs" % tot_time)
+    print(hr)
 
 
 def profile_kernel(kernel, name, backend=None):

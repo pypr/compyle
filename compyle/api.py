@@ -11,6 +11,10 @@ from .low_level import Kernel, LocalMem, Cython
 from .parallel import (
     Elementwise, Reduction, Scan, elementwise
 )
+from .profile import (
+    get_profile_info, named_profile, profile, profile_ctx, print_profile,
+    profile_kernel
+)
 from .translator import (
     CConverter, CStructHelper, OpenCLConverter, detect_type, ocl_detect_type,
     py2c
