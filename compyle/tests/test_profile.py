@@ -14,6 +14,25 @@ def axpb():
     return a * x + b
 
 
+class A:
+    @profile
+    def f(self):
+        pass
+
+
+class B:
+    def __init__(self):
+        self.name = 'my_name'
+
+    @profile
+    def f(self):
+        pass
+
+    @profile(name='explicit_name')
+    def named(self):
+        pass
+
+
 @profile
 def profiled_axpb():
     axpb()
@@ -46,6 +65,28 @@ def test_profile():
 
     profile_info = get_profile_info()
     assert profile_info['profiled_axpb']['calls'] == 100
+
+
+def test_profile_method():
+    # Given
+    a = A()
+    b = B()
+
+    # When
+    for i in range(5):
+        a.f()
+        b.f()
+        b.named()
+
+    # Then
+    profile_info = get_profile_info()
+    assert profile_info['A.f']['calls'] == 5
+
+    # For b.f(), b.name is my_name.
+    assert profile_info['my_name']['calls'] == 5
+
+    # profile was given an explicit name for b.named()
+    assert profile_info['explicit_name']['calls'] == 5
 
 
 def test_named_profile():
