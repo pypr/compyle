@@ -74,8 +74,11 @@ def print_profile():
     global _profile_info
     profile_data = sorted(_profile_info.items(), key=lambda x: x[1]['time'],
                           reverse=True)
+    hr = '-'*70
+    print(hr)
     if len(_profile_info) == 0:
         print("No profiling information available")
+        print(hr)
         return
     print("Profiling info:")
     print("{:<40} {:<10} {:<10}".format('Function', 'N calls', 'Time'))
@@ -87,6 +90,7 @@ def print_profile():
             data['time']))
         tot_time += data['time']
     print("Total profiled time: %g secs" % tot_time)
+    print(hr)
 
 
 def profile_kernel(kernel, name, backend=None):
