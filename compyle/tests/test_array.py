@@ -349,3 +349,14 @@ def test_cumsum(backend):
     a.pull()
     b.pull()
     assert np.all(b.data == np.cumsum(a.data))
+
+    # Test cumsum with an out argument
+    # Given
+    out = array.zeros(100, dtype=int, backend=backend)
+
+    # When
+    b = array.cumsum(a, out=out)
+
+    # Then
+    out.pull()
+    assert np.all(out.data == np.cumsum(a.data))
