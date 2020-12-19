@@ -13,7 +13,7 @@ from .parallel import (
 )
 from .profile import (
     get_profile_info, named_profile, profile, profile_ctx, print_profile,
-    profile_kernel
+    profile_kernel, ProfileContext, profile2csv
 )
 from .translator import (
     CConverter, CStructHelper, OpenCLConverter, detect_type, ocl_detect_type,
