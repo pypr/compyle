@@ -7,13 +7,17 @@ import time
 from .config import get_config
 
 
-_profile_info = defaultdict(lambda: {'calls': 0, 'time': 0})
+_current_level = 0
+_profile_info = defaultdict(
+    lambda: defaultdict(lambda: {'calls': 0, 'time': 0})
+)
 
 
 def _record_profile(name, time):
-    global _profile_info
-    _profile_info[name]['time'] += time
-    _profile_info[name]['calls'] += 1
+    global _profile_info, _current_level
+    li = _profile_info[_current_level]
+    li[name]['time'] += time
+    li[name]['calls'] += 1
 
 
 @contextmanager
@@ -25,9 +29,14 @@ def profile_ctx(name):
     with profile_ctx('f'):
         f()
     """
+    global _current_level
+    _current_level += 1
     start = time.time()
-    yield start
-    end = time.time()
+    try:
+        yield start
+        end = time.time()
+    finally:
+        _current_level -= 1
     _record_profile(name, end - start)
 
 
@@ -65,6 +74,32 @@ def profile(method=None, name=None):
         return make_wrapper(method)
 
 
+class ProfileContext:
+    """Used for a low-level profiling context.
+
+    This is typically useful in Cython code where decorators are not usable and
+    using a context manager makes the code hard to read.
+
+    Example
+    -------
+
+    p = ProfileContext('some_func')
+    do_something()
+    p.stop()
+
+    """
+    def __init__(self, name):
+        self.name = name
+        global _current_level
+        _current_level += 1
+        self.start = time.time()
+
+    def stop(self):
+        global _current_level
+        _current_level -= 1
+        _record_profile(self.name, time.time() - self.start)
+
+
 def get_profile_info():
     global _profile_info
     return _profile_info
@@ -72,8 +107,6 @@ def get_profile_info():
 
 def print_profile():
     global _profile_info
-    profile_data = sorted(_profile_info.items(), key=lambda x: x[1]['time'],
-                          reverse=True)
     hr = '-'*70
     print(hr)
     if len(_profile_info) == 0:
@@ -81,16 +114,41 @@ def print_profile():
         print(hr)
         return
     print("Profiling info:")
-    print("{:<40} {:<10} {:<10}".format('Function', 'N calls', 'Time'))
+    print(
+        "{:<6} {:<40} {:<10} {:<10}".format(
+            'Level', 'Function', 'N calls', 'Time')
+    )
     tot_time = 0
-    for kernel, data in profile_data:
-        print("{:<40} {:<10} {:<10}".format(
-            kernel,
-            data['calls'],
-            data['time']))
-        tot_time += data['time']
+    for level in range(0, min(len(_profile_info), 2)):
+        profile_data = sorted(
+            _profile_info[level].items(), key=lambda x: x[1]['time'],
+            reverse=True
+        )
+        for kernel, data in profile_data:
+            print("{:<6} {:<40} {:<10} {:<10.3g}".format(
+                level, kernel, data['calls'], data['time'])
+            )
+            if level == 0:
+                tot_time += data['time']
     print("Total profiled time: %g secs" % tot_time)
     print(hr)
+
+
+def profile2csv(fname):
+    info = get_profile_info()
+    with open(fname, 'w') as f:
+        f.write("{0},{1},{2},{3}\n".format(
+            'level', 'function', 'calls', 'time')
+        )
+        for level in sorted(info.keys()):
+            profile_data = sorted(
+                info[level].items(), key=lambda x: x[1]['time'],
+                reverse=True
+            )
+            for name, data in profile_data:
+                f.write("{0},{1},{2},{3}\n".format(
+                    level, name, data['calls'], data['time']
+                ))
 
 
 def profile_kernel(kernel, name, backend=None):
