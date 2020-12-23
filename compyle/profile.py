@@ -7,9 +7,13 @@ import time
 from .config import get_config
 
 
+def _make_default():
+    return dict(calls=0, time=0.0)
+
+
 _current_level = 0
 _profile_info = defaultdict(
-    lambda: defaultdict(lambda: {'calls': 0, 'time': 0})
+    lambda: defaultdict(_make_default)
 )
 
 
@@ -134,21 +138,30 @@ def print_profile():
     print(hr)
 
 
-def profile2csv(fname):
-    info = get_profile_info()
+def profile2csv(fname, info=None):
+    '''Write profile info to a CSV file.
+
+    If the optional info argument is passed, it is used as the profile info.
+    The `info` argument is a list, potentially one for each rank (for a
+    parallel simulation).
+    '''
+    if info is None:
+        info = [get_profile_info()]
     with open(fname, 'w') as f:
-        f.write("{0},{1},{2},{3}\n".format(
-            'level', 'function', 'calls', 'time')
+        f.write("{0},{1},{2},{3},{4}\n".format(
+            'rank', 'level', 'function', 'calls', 'time')
         )
-        for level in sorted(info.keys()):
-            profile_data = sorted(
-                info[level].items(), key=lambda x: x[1]['time'],
-                reverse=True
-            )
-            for name, data in profile_data:
-                f.write("{0},{1},{2},{3}\n".format(
-                    level, name, data['calls'], data['time']
-                ))
+        for rank in range(len(info)):
+            pdata = info[rank]
+            for level in sorted(pdata.keys()):
+                profile_data = sorted(
+                    pdata[level].items(), key=lambda x: x[1]['time'],
+                    reverse=True
+                )
+                for name, data in profile_data:
+                    f.write("{0},{1},{2},{3},{4}\n".format(
+                        rank, level, name, data['calls'], data['time']
+                    ))
 
 
 def profile_kernel(kernel, name, backend=None):
