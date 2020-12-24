@@ -199,7 +199,14 @@ if sys.platform.startswith('win') or BITS.startswith('32bit'):
 NP_TYPE_LIST = list(C_NP_TYPE_MAP.values())
 
 
-def dtype_to_ctype(dtype):
+def dtype_to_ctype(dtype, backend=None):
+    if backend in ('opencl', 'cuda'):
+        try:
+            from pyopencl.compyte.dtypes import \
+                dtype_to_ctype as d2c_opencl
+            return d2c_opencl(dtype)
+        except (ValueError, ImportError):
+            pass
     dtype = np.dtype(dtype)
     return NP_C_TYPE_MAP[dtype]
 
@@ -216,8 +223,8 @@ def knowntype_to_ctype(knowntype):
         raise ValueError("Not a vaild known type")
 
 
-def dtype_to_knowntype(dtype, address='scalar'):
-    ctype = dtype_to_ctype(dtype)
+def dtype_to_knowntype(dtype, address='scalar', backend=None):
+    ctype = dtype_to_ctype(dtype, backend=backend)
     if 'unsigned' in ctype:
         ctype = 'u%s' % ctype.replace('unsigned ', '')
     knowntype = ctype.replace(' ', '')

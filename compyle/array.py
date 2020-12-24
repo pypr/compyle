@@ -536,7 +536,7 @@ def update_minmax_gpu(ary_list, only_min=False, only_max=False,
     props = ['ary_%s' % i for i in range(len(ary_list))]
 
     dtype = ary_list[0].dtype
-    ctype = dtype_to_ctype(dtype)
+    ctype = dtype_to_ctype(dtype, backend=backend)
 
     op = 'min' if not only_max else ''
     op += 'max' if not only_min else ''
@@ -687,7 +687,8 @@ class Array(object):
             from .cuda import set_context
             set_context()
         self.dtype = dtype
-        self.gptr_type = dtype_to_knowntype(dtype, address='global')
+        self.gptr_type = dtype_to_knowntype(dtype, address='global',
+                                            backend=backend)
         self.minimum = 0
         self.maximum = 0
         self.data = None
