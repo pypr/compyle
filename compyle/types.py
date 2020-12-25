@@ -1,6 +1,10 @@
 import ast
+import platform
 import sys
 import numpy as np
+
+
+BITS = platform.architecture()[0]
 
 
 def declare(type, num=1):
@@ -179,7 +183,7 @@ C_NP_TYPE_MAP = {
     'unsigned short': np.uint16
 }
 
-if sys.platform.startswith('win'):
+if sys.platform.startswith('win') or BITS.startswith('32bit'):
     NP_C_TYPE_MAP[np.dtype(np.int64)] = 'long long'
     NP_C_TYPE_MAP[np.dtype(np.uint64)] = 'unsigned long long'
     C_NP_TYPE_MAP['long long'] = np.int64
@@ -195,19 +199,14 @@ if sys.platform.startswith('win'):
 NP_TYPE_LIST = list(C_NP_TYPE_MAP.values())
 
 
-def dtype_to_ctype(dtype):
-    try:
-        # FIXME: pyopencl depency
-
-        from pyopencl.compyte.dtypes import \
-            dtype_to_ctype as dtype_to_ctype_pyopencl
-        ctype = dtype_to_ctype_pyopencl(dtype)
-    except ValueError:
-        pass
-    except ImportError:
-        pass
-    else:
-        return ctype
+def dtype_to_ctype(dtype, backend=None):
+    if backend in ('opencl', 'cuda'):
+        try:
+            from pyopencl.compyte.dtypes import \
+                dtype_to_ctype as d2c_opencl
+            return d2c_opencl(dtype)
+        except (ValueError, ImportError):
+            pass
     dtype = np.dtype(dtype)
     return NP_C_TYPE_MAP[dtype]
 
@@ -224,8 +223,8 @@ def knowntype_to_ctype(knowntype):
         raise ValueError("Not a vaild known type")
 
 
-def dtype_to_knowntype(dtype, address='scalar'):
-    ctype = dtype_to_ctype(dtype)
+def dtype_to_knowntype(dtype, address='scalar', backend=None):
+    ctype = dtype_to_ctype(dtype, backend=backend)
     if 'unsigned' in ctype:
         ctype = 'u%s' % ctype.replace('unsigned ', '')
     knowntype = ctype.replace(' ', '')

@@ -596,7 +596,7 @@ class ReductionBase(object):
             self.name = 'reduce'
         self.reduce_expr = reduce_expr
         self.dtype_out = dtype_out
-        self.type = dtype_to_ctype(dtype_out)
+        self.type = dtype_to_ctype(dtype_out, backend=backend)
         if backend == 'cython':
             # On Windows, INFINITY is not defined so we use INFTY which we
             # internally define.
@@ -847,7 +847,7 @@ class ScanBase(object):
             self.name = 'scan'
         self.scan_expr = scan_expr
         self.dtype = dtype
-        self.type = dtype_to_ctype(dtype)
+        self.type = dtype_to_ctype(dtype, backend=backend)
         if backend == 'cython':
             # On Windows, INFINITY is not defined so we use INFTY which we
             # internally define.

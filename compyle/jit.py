@@ -11,7 +11,7 @@ from .config import get_config
 from .cython_generator import CythonGenerator
 from .transpiler import Transpiler, BUILTINS
 from .types import (dtype_to_ctype, get_declare_info,
-                    dtype_to_knowntype, annotate)
+                    dtype_to_knowntype, annotate, BITS)
 from .extern import Extern
 from .utils import getsourcelines
 from .profile import profile
@@ -44,7 +44,7 @@ def get_ctype_from_arg(arg):
             return 'double'
         else:
             if arg > 2147483648:
-                return 'long'
+                return 'long long' if BITS.startswith('32') else 'long'
             else:
                 return 'int'
 
@@ -362,7 +362,7 @@ class ReductionJIT(parallel.ReductionBase):
             self.name = 'reduce'
         self.reduce_expr = reduce_expr
         self.dtype_out = dtype_out
-        self.type = dtype_to_ctype(dtype_out)
+        self.type = dtype_to_ctype(dtype_out, backend)
         if backend == 'cython':
             # On Windows, INFINITY is not defined so we use INFTY which we
             # internally define.
@@ -446,7 +446,7 @@ class ScanJIT(parallel.ScanBase):
             self.name = 'scan'
         self.scan_expr = scan_expr
         self.dtype = dtype
-        self.type = dtype_to_ctype(dtype)
+        self.type = dtype_to_ctype(dtype, backend)
         if backend == 'cython':
             # On Windows, INFINITY is not defined so we use INFTY which we
             # internally define.
@@ -463,7 +463,9 @@ class ScanJIT(parallel.ScanBase):
         builtin_symbols = ['item', 'prev_item', 'last_item']
         self.builtin_types = {'i': 'int', 'N': 'int'}
         for sym in builtin_symbols:
-            self.builtin_types[sym] = dtype_to_knowntype(self.dtype)
+            self.builtin_types[sym] = dtype_to_knowntype(
+                self.dtype, backend=backend
+            )
 
     def get_type_info_from_kwargs(self, func, **kwargs):
         type_info = {}
@@ -487,7 +489,9 @@ class ScanJIT(parallel.ScanBase):
         if self.input_func is not None:
             arg_types = self.get_type_info_from_kwargs(
                 self.input_func, **kwargs)
-            arg_types['return_'] = dtype_to_knowntype(self.dtype)
+            arg_types['return_'] = dtype_to_knowntype(
+                self.dtype, backend=self.backend
+            )
             helper = AnnotationHelper(self.input_func, arg_types)
             declarations.update(helper.annotate())
             self.input_func = helper.func

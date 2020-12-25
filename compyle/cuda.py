@@ -2,8 +2,8 @@
 """
 from __future__ import print_function
 
-from pytools import Record, RecordWithoutPickling
 import logging
+from pytools import Record, RecordWithoutPickling
 from pytools.persistent_dict import KeyBuilder as KeyBuilderBase
 from pytools.persistent_dict import WriteOncePersistentDict
 from pycuda._cluda import CLUDA_PREAMBLE
@@ -14,7 +14,6 @@ import pycuda.gpuarray as gpuarray
 from compyle.thrust.sort import argsort
 import pycuda.driver as drv
 from pycuda.compiler import SourceModule as _SourceModule
-from pycuda.tools import dtype_to_ctype
 from pytools import memoize
 import numpy as np
 import six
@@ -66,7 +65,8 @@ class _CDeclList:
             self.add_dtype(field_dtype)
 
         _, cdecl = match_dtype_to_c_struct(
-            self.device, dtype_to_ctype(dtype), dtype)
+            self.device, dtype_to_ctype(dtype), dtype
+        )
 
         self.declarations.append(cdecl)
         self.declared_dtypes.add(dtype)
@@ -132,7 +132,8 @@ def match_dtype_to_c_struct(device, name, dtype, context=None, use_typedef=False
     c_fields = []
     for field_name, dtype_and_offset in fields:
         field_dtype, offset = dtype_and_offset[:2]
-        c_fields.append("  %s %s;" % (dtype_to_ctype(field_dtype), field_name))
+        c_fields.append("  %s %s;" % (dtype_to_ctype(field_dtype),
+                                      field_name))
 
     if use_typedef:
         c_decl = "typedef struct {\n%s\n} %s;\n\n" % (
