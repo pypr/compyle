@@ -34,11 +34,11 @@ def memoize_kernel(key=lambda *args: args):
     return memoize_deco
 
 
-def get_ctype_from_arg(arg):
+def get_ctype_from_arg(arg, backend=None):
     if isinstance(arg, array.Array):
         return arg.gptr_type
     elif isinstance(arg, np.ndarray) or isinstance(arg, np.floating):
-        return dtype_to_ctype(arg.dtype)
+        return dtype_to_ctype(arg.dtype, backend=backend)
     else:
         if isinstance(arg, float):
             return 'double'
@@ -50,14 +50,15 @@ def get_ctype_from_arg(arg):
 
 
 def kernel_cache_key_args(obj, *args):
-    key = [get_ctype_from_arg(arg) for arg in args]
+    key = [get_ctype_from_arg(arg, backend=obj.backend) for arg in args]
     key.append(obj.func)
     key.append(obj.name)
     return tuple(key + list(parallel.get_common_cache_key(obj)))
 
 
 def kernel_cache_key_kwargs(obj, **kwargs):
-    key = [get_ctype_from_arg(arg) for arg in kwargs.values()]
+    key = [get_ctype_from_arg(arg, backend=obj.backend)
+           for arg in kwargs.values()]
     key.append(obj.input_func)
     key.append(obj.output_func)
     key.append(obj.scan_expr)
@@ -306,7 +307,7 @@ class ElementwiseJIT(parallel.ElementwiseBase):
             arg_names.remove('i')
             type_info['i'] = 'int'
         for arg, name in zip(args, arg_names):
-            arg_type = get_ctype_from_arg(arg)
+            arg_type = get_ctype_from_arg(arg, backend=self.backend)
             if not arg_type:
                 arg_type = 'double'
             type_info[name] = arg_type
@@ -384,7 +385,7 @@ class ReductionJIT(parallel.ReductionBase):
             arg_names.remove('i')
             type_info['i'] = 'int'
         for arg, name in zip(args, arg_names):
-            arg_type = get_ctype_from_arg(arg)
+            arg_type = get_ctype_from_arg(arg, backend=self.backend)
             if not arg_type:
                 arg_type = 'double'
             type_info[name] = arg_type
@@ -477,7 +478,7 @@ class ScanJIT(parallel.ScanBase):
             if name in self.builtin_types:
                 arg_type = self.builtin_types[name]
             else:
-                arg_type = get_ctype_from_arg(arg)
+                arg_type = get_ctype_from_arg(arg, backend=self.backend)
             if not arg_type:
                 arg_type = 'double'
             type_info[name] = arg_type

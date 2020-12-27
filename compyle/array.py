@@ -478,7 +478,8 @@ def sort_by_keys(ary_list, out_list=None, key_bits=None,
                 for ary in ary_list
             ]
 
-        arg_types = [get_ctype_from_arg(arg) for arg in ary_list]
+        arg_types = [get_ctype_from_arg(arg, backend=backend)
+                     for arg in ary_list]
 
         sort_knl = get_cl_sort_kernel(arg_types, ary_list)
         allocator = get_allocator(get_queue())
@@ -643,7 +644,7 @@ class AlignMultiple(Template):
 
 def key_align_kernel(ary_list, order, backend=None):
     from .jit import get_ctype_from_arg
-    key = [get_ctype_from_arg(ary) for ary in ary_list]
+    key = [get_ctype_from_arg(ary, backend=backend) for ary in ary_list]
     key.append(backend)
     key.append(get_config().use_openmp)
     return tuple(key)
