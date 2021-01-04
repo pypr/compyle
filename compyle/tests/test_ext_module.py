@@ -1,6 +1,5 @@
 from contextlib import contextmanager
-from distutils.sysconfig import get_config_var
-from io import open as io_open
+from io import StringIO, open as io_open
 import os
 from os.path import join, exists
 import shutil
@@ -15,7 +14,8 @@ try:
 except ImportError:
     import mock
 
-from ..ext_module import get_md5, ExtModule, get_ext_extension, get_unicode
+from ..ext_module import (get_md5, ExtModule, get_ext_extension, get_unicode,
+                          get_config_file_opts)
 
 
 def _check_write_source(root):
@@ -46,6 +46,34 @@ def _check_compile(root):
         # If it was called, do the copy to mimic the action.
         shutil.copy(*m.call_args[0])
     return m.call_count
+
+
+def test_get_config_file_opts():
+    # Given
+    cfg = dedent('''
+    OMP_CFLAGS = ['-fxxx']
+    OMP_LINK = ['-fyyy']
+    ''')
+    m = mock.mock_open(read_data=cfg)
+    with mock.patch('compyle.ext_module.open', m), \
+        mock.patch('compyle.ext_module.exists') as mock_exists:
+        # When
+        mock_exists.return_value = False
+        opts = get_config_file_opts()
+        print(opts)
+
+        # Then
+        assert 'OMP_CFLAGS' not in opts
+        assert 'OMP_LINK' not in opts
+
+        # When
+        mock_exists.return_value = True
+        opts = get_config_file_opts()
+        print(opts)
+
+        # Then
+        assert opts['OMP_CFLAGS'] == ['-fxxx']
+        assert opts['OMP_LINK'] == ['-fyyy']
 
 
 class TestMiscExtMod(TestCase):

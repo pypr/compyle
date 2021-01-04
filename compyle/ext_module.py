@@ -32,6 +32,34 @@ from .capture_stream import CaptureMultipleStreams  # noqa: 402
 logger = logging.getLogger(__name__)
 
 
+def get_config_file_opts():
+    '''A global configuration file is used to configure build options
+    for compyle and other packages.  This is located in:
+
+    ~/.compyle/config.py
+
+    The file can contain arbitrary Python that is exec'd. The variables defined
+    here specify the compile and link args. For example, one may set:
+
+    OMP_CFLAGS = ['-fopenmp']
+    OMP_LINK = ['-fopenmp']
+
+    Will use these instead of the defaults that are automatically determined.
+    These must be lists.
+
+    '''
+    fname = expanduser(join('~', '.compyle', 'config.py'))
+    opts = {}
+    if exists(fname):
+        with open(fname) as fp:
+            exec(compile(fp.read(), fname, 'exec'), opts)
+        opts.pop('__builtins__', None)
+    return opts
+
+
+CONFIG_OPTS = get_config_file_opts()
+
+
 def get_platform_dir():
     return 'py{version}-{platform_dir}'.format(
         version=sys.version[:3], platform_dir=get_platform()
@@ -62,6 +90,9 @@ def get_openmp_flags():
 
     This returns two lists, [extra_compile_args], [extra_link_args]
     """
+    if 'OMP_CFLAGS' in CONFIG_OPTS or 'OMP_LINK' in CONFIG_OPTS:
+        return CONFIG_OPTS['OMP_CFLAGS'], CONFIG_OPTS['OMP_LINK']
+
     if sys.platform == 'win32':
         return ['/openmp'], []
     elif sys.platform == 'darwin':
@@ -91,8 +122,8 @@ class ExtModule(object):
             Do not specify the '.' (defaults to 'pyx').
 
         root : str: root of directory to store code and modules in.
-            If not set it defaults to "~/.cpy/source/<platform-directory>".
-            where <platform-directory> is platform specific.
+            If not set it defaults to "~/.compyle/source/<platform-dir>".
+            where <platform-dir> is platform specific.
 
         verbose : Bool : Print messages for convenience.
 
