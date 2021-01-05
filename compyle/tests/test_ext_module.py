@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from io import StringIO, open as io_open
+from io import open as io_open
 import os
 from os.path import join, exists
 import shutil
@@ -14,8 +14,10 @@ try:
 except ImportError:
     import mock
 
+import compyle.ext_module
+
 from ..ext_module import (get_md5, ExtModule, get_ext_extension, get_unicode,
-                          get_config_file_opts)
+                          get_config_file_opts, get_openmp_flags)
 
 
 def _check_write_source(root):
@@ -69,11 +71,31 @@ def test_get_config_file_opts():
         # When
         mock_exists.return_value = True
         opts = get_config_file_opts()
-        print(opts)
 
         # Then
         assert opts['OMP_CFLAGS'] == ['-fxxx']
         assert opts['OMP_LINK'] == ['-fyyy']
+
+
+def test_get_openmp_flags():
+    # Given/When
+    f = get_openmp_flags()
+
+    # Then
+    assert f[0] != ['-fxxx']
+    assert f[1] != ['-fyyy']
+    assert len(f[0]) > 0
+
+    # Given
+    m = dict(OMP_CFLAGS=['-fxxx'], OMP_LINK=['-fyyy'])
+
+    with mock.patch.object(compyle.ext_module, 'CONFIG_OPTS', m):
+        # When
+        f = get_openmp_flags()
+
+        # Then
+        assert f[0] == ['-fxxx']
+        assert f[1] == ['-fyyy']
 
 
 class TestMiscExtMod(TestCase):
