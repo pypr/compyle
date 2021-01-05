@@ -99,7 +99,8 @@ deployment target and the current version of XCode that you have installed is
 not compatible with that. By setting the environment variable you allow
 compyle to use a newer version. If this works, it is a good idea to set this
 in your default environment (``.bashrc`` for bash shells) so you do not have
-to do this every time.
+to do this every time. You may also do this in the compyle configuration file,
+see :ref:`config`.
 
 
 
@@ -135,7 +136,8 @@ installed, otherwise the important header files are not available. See
 `how-to-install-xcode-command-line-tools
 <https://stackoverflow.com/questions/9329243/how-to-install-xcode-command-line-tools>`_
 for more details. You may also want to set these environment variables in your
-``.bashrc`` so you don't have to do this every time.
+``.bashrc`` so you don't have to do this every time. You may also do this in
+the compyle configuration file, see :ref:`config`.
 
 Once you do this, compyle will automatically use this version of GCC and will
 also work with OpenMP. Note that on some preliminary benchmarks, GCC's OpenMP
@@ -171,3 +173,35 @@ If you want to use OpenCL support, you will need to install the ``pyopencl``
 package (``conda install -c conda-forge pyopencl`` or ``pip install
 pyopencl``). For CUDA Support, you will need to install ``pycuda`` and
 ``cupy``. Of course this assumes you have the required hardware for this.
+
+
+.. _config:
+
+Using the configuration file
+-----------------------------
+
+Instead of setting environment variables and build options on the shell you
+can have them setup using a simple configuration file.
+
+The file is located in ``~/.compyle/config.py``. Here ``~`` is your home
+directory which on Linux is ``/home/username``, on MacOS ``/Users/username``
+and on Windows the location is likely ``\Users\username``. This file is
+executed and certain options may be set there.
+
+For example if you wish to set the environment variables ``CC`` and ``CXX``
+you could do this in the ``config.py``::
+
+  import os
+
+  os.environ['CC'] = 'gcc-9'
+  os.environ['CXX'] = 'g++-9'
+
+If you are using an atypical compiler like icc, Cray, or PGI, you can set
+these up here too. You may also setup custom OpenMP related flags. For
+example, on a Cray system you may do the following::
+
+  OMP_CFLAGS = ['-homp']
+  OMP_LINK = ['-homp']
+
+The ``OMP_CFLAGS`` and ``OMP_LINK`` parameters should be lists. Other packages
+like pyzoltan or pysph may also use this file for customizations.
