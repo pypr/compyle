@@ -22,8 +22,6 @@ if sys.platform == 'win32':
 else:
     from distutils.extension import Extension
 
-PY3 = sys.version_info.major > 2
-
 # Package imports.
 from .config import get_config  # noqa: 402
 from .capture_stream import CaptureMultipleStreams  # noqa: 402
@@ -76,13 +74,6 @@ def get_md5(data):
     """Return the MD5 sum of the given data.
     """
     return hashlib.md5(data.encode()).hexdigest()
-
-
-def get_unicode(s):
-    if PY3:
-        return s
-    else:
-        return unicode(s)
 
 
 def get_openmp_flags():
@@ -197,7 +188,7 @@ class ExtModule(object):
     def _write_source(self, path):
         if not exists(path):
             with io.open(path, 'w', encoding='utf-8') as f:
-                f.write(get_unicode(self.code))
+                f.write(self.code)
 
     def _setup_root(self, root):
         if root is None:
@@ -279,8 +270,9 @@ class ExtModule(object):
             except (CompileError, LinkError):
                 hline = "*"*80
                 print(hline + "\nERROR")
-                print(stream.get_output()[0])
-                print(stream.get_output()[1])
+                s_out = stream.get_output()
+                print(s_out[0])
+                print(s_out[1])
                 msg = "Compilation of code failed, please check "\
                       "error messages above."
                 print(hline + "\n" + msg)

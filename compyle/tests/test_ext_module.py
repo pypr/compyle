@@ -16,7 +16,7 @@ except ImportError:
 
 import compyle.ext_module
 
-from ..ext_module import (get_md5, ExtModule, get_ext_extension, get_unicode,
+from ..ext_module import (get_md5, ExtModule, get_ext_extension,
                           get_config_file_opts, get_openmp_flags)
 
 
@@ -30,7 +30,7 @@ def _check_write_source(root):
 
     def _side_effect(*args, **kw):
         with io_open(*args, **kw) as fp:
-            fp.write(get_unicode("junk"))
+            fp.write("junk")
         return orig_side_effect(*args, **kw)
     m.side_effect = _side_effect
 
