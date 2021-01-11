@@ -4,6 +4,19 @@ import sys
 from tempfile import mktemp
 
 
+def get_ipython_capture():
+    try:
+        # This will work inside IPython but not outside it.
+        name = get_ipython().__class__.__name__
+        if name.startswith('ZMQ'):
+            from IPython.utils.capture import capture_output
+            return capture_output
+        else:
+            return None
+    except NameError:
+        return None
+
+
 class CaptureStream(object):
     """A context manager which captures any errors on a given stream (like
     sys.stderr).  The stream is captured and the outputs can be used.
@@ -79,15 +92,29 @@ class CaptureMultipleStreams(object):
         streams = (sys.stdout, sys.stderr) if streams is None else streams
         self.streams = streams
         self.captures = [CaptureStream(x) for x in streams]
+        cap = get_ipython_capture()
+        if cap:
+            self.jcap = cap(stdout=True, stderr=True, display=True)
+        else:
+            self.jcap = None
+        self.joutput = None
 
     def __enter__(self):
         for capture in self.captures:
             capture.__enter__()
+        if self.jcap:
+            self.joutput = self.jcap.__enter__()
         return self
 
     def __exit__(self, type, value, tb):
         for capture in self.captures:
             capture.__exit__(type, value, tb)
+        if self.jcap:
+            self.jcap.__exit__(type, value, tb)
 
     def get_output(self):
-        return tuple(x.get_output() for x in self.captures)
+        out = list(x.get_output() for x in self.captures)
+        if self.joutput:
+            out[0] += self.joutput.stdout
+            out[1] += self.joutput.stderr
+        return out
