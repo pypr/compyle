@@ -74,6 +74,10 @@ def getargspec(f):
 def get_binop_return_type(a, b):
     if a is None or b is None:
         return None
+    if a.endswith('p'):
+        return a
+    if b.endswith('p'):
+        return b
     preference_order = ['short', 'int', 'long', 'float', 'double']
     unsigned_a = unsigned_b = False
     if a.startswith('u'):
