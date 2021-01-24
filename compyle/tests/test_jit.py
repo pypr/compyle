@@ -16,6 +16,11 @@ def g(x):
     return x
 
 
+@annotate(x='int', return_='int')
+def g_nonjit(x):
+    return x
+
+
 @annotate
 def h(a, b):
     return g(a) * g(b)
@@ -68,6 +73,24 @@ class TestAnnotationHelper(unittest.TestCase):
         # Then
         assert helper.external_funcs['g'].arg_types['x'] == 'double'
 
+    def test_declare_multiple_variables(self):
+        # Given
+        @annotate
+        def f(x):
+            a, b = declare('int', 2)
+            a = 0
+            b = 1
+            return x + a + b
+
+        # When
+        types = {'x': 'int'}
+        helper = AnnotationHelper(f, types)
+        helper.annotate()
+
+        # Then
+        assert helper.get_var_type('a') == 'int'
+        assert helper.get_var_type('b') == 'int'
+
     def test_variable_as_call_arg(self):
         # Given
         @annotate
@@ -83,6 +106,22 @@ class TestAnnotationHelper(unittest.TestCase):
 
         # Then
         assert helper.external_funcs['g'].arg_types['x'] == 'int'
+
+    def test_variable_as_call_arg_nonjit(self):
+        # Given
+        @annotate
+        def f(a, b):
+            x = declare('int')
+            x = a + b
+            return g_nonjit(x)
+
+        # When
+        types = {'a': 'int', 'b': 'int'}
+        helper = AnnotationHelper(f, types)
+        helper.annotate()
+
+        # Then
+        assert helper.external_funcs['g_nonjit'].arg_types['x'] == 'int'
 
     def test_subscript_as_call_arg(self):
         # Given
@@ -374,6 +413,60 @@ class TestAnnotationHelper(unittest.TestCase):
 
         # Then
         assert helper.arg_types['return_'] == 'ulong'
+
+        # When
+        types = {'a': 'intp', 'b': 'int'}
+        helper = AnnotationHelper(f, types)
+        helper.annotate()
+
+        # Then
+        assert helper.arg_types['return_'] == 'intp'
+
+        # When
+        types = {'a': 'gdoublep', 'b': 'int'}
+        helper = AnnotationHelper(f, types)
+        helper.annotate()
+
+        # Then
+        assert helper.arg_types['return_'] == 'gdoublep'
+
+        # When
+        types = {'a': 'int', 'b': 'intp'}
+        helper = AnnotationHelper(f, types)
+        helper.annotate()
+
+        # Then
+        assert helper.arg_types['return_'] == 'intp'
+
+    def test_cast_return_type(self):
+        # Given
+        @annotate
+        def f(a):
+            return cast(a, "int")
+
+        # When
+        types = {'a': 'double'}
+        helper = AnnotationHelper(f, types)
+        helper.annotate()
+
+        # Then
+        assert helper.get_return_type() == 'int'
+
+    def test_address_type(self):
+        # Given
+        @annotate
+        def f(a):
+            b = address(a[0])
+            return b[0]
+
+        # When
+        types = {'a': 'gintp'}
+        helper = AnnotationHelper(f, types)
+        helper.annotate()
+
+        # Then
+        assert helper.get_var_type('b') == 'gintp'
+        assert helper.get_return_type() == 'int'
 
     def test_undeclared_variable_declaration(self):
         # Given
