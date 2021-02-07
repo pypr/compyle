@@ -438,6 +438,22 @@ class TestAnnotationHelper(unittest.TestCase):
         # Then
         assert helper.arg_types['return_'] == 'intp'
 
+        # When
+        types = {'a': 'int', 'b': 'guintp'}
+        helper = AnnotationHelper(f, types)
+        helper.annotate()
+
+        # Then
+        assert helper.arg_types['return_'] == 'guintp'
+
+        # When
+        types = {'a': 'uint', 'b': 'guintp'}
+        helper = AnnotationHelper(f, types)
+        helper.annotate()
+
+        # Then
+        assert helper.arg_types['return_'] == 'guintp'
+
     def test_cast_return_type(self):
         # Given
         @annotate
@@ -531,3 +547,34 @@ class TestAnnotationHelper(unittest.TestCase):
 
         # Then
         assert helper.undecl_var_types['i'] == 'int'
+
+    def test_no_return_value(self):
+        # Given
+        @annotate
+        def f_no_return(a, n):
+            for i in range(n):
+                a[i] += 1
+            return
+
+        # When
+        types = {'a': 'guintp', 'n': 'int'}
+        helper = AnnotationHelper(f_no_return, types)
+        helper.annotate()
+
+        # Then
+        assert 'return_' not in helper.arg_types
+
+        # Given
+        @annotate
+        def f_return(a, n):
+            for i in range(n):
+                a[i] += 1
+            return n
+
+        # When
+        helper = AnnotationHelper(f_return, types)
+        helper.annotate()
+
+        # Then
+        assert 'return_' in helper.arg_types and \
+            helper.arg_types['return_'] == 'int'
