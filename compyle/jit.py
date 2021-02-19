@@ -71,16 +71,24 @@ def getargspec(f):
     return getargspec_f(f)[0]
 
 
+def get_signed_type(a):
+    return a[1:] if a.startswith('u') else a
+
+
 def get_binop_return_type(a, b):
     int_types = ['short', 'int', 'long']
     float_types = ['float', 'double']
+
     if a is None or b is None:
         return None
-    if a.endswith('p') and b in int_types:
+
+    if a.endswith('p') and get_signed_type(b) in int_types:
         return a
-    if b.endswith('p') and a in int_types:
+    if b.endswith('p') and get_signed_type(a) in int_types:
         return b
+
     preference_order = int_types + float_types
+
     unsigned_a = unsigned_b = False
     if a.startswith('u'):
         unsigned_a = True
@@ -88,6 +96,7 @@ def get_binop_return_type(a, b):
     if b.startswith('u'):
         unsigned_b = True
         b = b[1:]
+
     idx_a = preference_order.index(a)
     idx_b = preference_order.index(b)
     return_type = preference_order[idx_a] if idx_a > idx_b else \
@@ -142,8 +151,6 @@ class AnnotationHelper(ast.NodeVisitor):
             name, self.undecl_var_types.get(name, 'double'))
 
     def get_return_type(self):
-        if 'return_' not in self.arg_types:
-            warnings.warn("Couldn't find valid return type for %s" % self.name)
         return self.arg_types.get('return_', 'double')
 
     def annotate(self):
@@ -291,9 +298,6 @@ class AnnotationHelper(ast.NodeVisitor):
             if result_type:
                 self.arg_types['return_'] = result_type
                 return result_type
-        self.warn("Unknown type for return value. "
-                  "Return value defaulting to 'double'", node)
-        self.arg_types['return_'] = 'double'
 
 
 class ElementwiseJIT(parallel.ElementwiseBase):
