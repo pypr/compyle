@@ -371,10 +371,12 @@ def arange(start, stop, step, dtype=np.int32, backend='cython'):
         out = np.arange(start, stop, step, dtype=dtype)
     return wrap_array(out, backend)
 
-def linspace(start, stop, num, dtype=np.float64, backend='opencl', endpoint=True):
-    if not type(num)==int:
+
+def linspace(start, stop, num, dtype=np.float64, backend='opencl',
+             endpoint=True):
+    if not type(num) == int:
         raise Exception("num should be an integer")
-    if num<=0:
+    if num <= 0:
         raise Exception('num should be greater than 0')
     if backend == 'opencl':
         import pyopencl.array as gpuarray
@@ -383,27 +385,22 @@ def linspace(start, stop, num, dtype=np.float64, backend='opencl', endpoint=True
             delta = (stop-start)/(num-1)
         else:
             delta = (stop-start)/num
-        out = gpuarray.arange(get_queue(), 0, num, 
+        out = gpuarray.arange(get_queue(), 0, num,
                               1, dtype=dtype)
-        out = out*delta+start
-    elif backend=='cuda':
+        out = out * delta+start
+    elif backend == 'cuda':
         import pycuda.gpuarray as gpuarray
         import pycuda.autoinit
         if endpoint:
             delta = (stop-start)/(num-1)
         else:
             delta = (stop-start)/num
-        
         out = gpuarray.arange(0, num, 1, dtype=dtype)
         out = out*delta+start
     else:
         out = np.linspace(start, stop, num,
-                         endpoint=endpoint, dtype=dtype)
+                          endpoint=endpoint, dtype=dtype)
     return wrap_array(out, backend)
-
-
-    return wrap_array(out, backend)
-
 
 
 def minimum(ary, backend=None):
