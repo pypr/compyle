@@ -360,3 +360,17 @@ def test_cumsum(backend):
     # Then
     out.pull()
     assert np.all(out.data == np.cumsum(a.data))
+
+
+@check_all_backends
+def test_linspace(backend):
+    check_import(backend)
+
+    dev_array = array.linspace(2, 10, 100, backend=backend)
+
+    assert(dev_array[-1] == 10)
+    dev_array = array.linspace(2, 10, 100, endpoint=False,
+                               backend=backend)
+    assert(dev_array[-1] < 10)
+    dtype = dev_array.dtype
+    assert(np.issubdtype(dtype, np.floating))
