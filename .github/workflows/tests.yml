@@ -39,3 +39,10 @@ jobs:
         run: |
           coverage erase
           coverage run -m pytest -v
+      - name: Report
+        if: ${{ success() }}
+        run: coverage report
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v1
+        with:
+          env_vars: ${{ matrix.os }}, ${{ matrix.python-version }}
