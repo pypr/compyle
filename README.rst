@@ -1,13 +1,11 @@
 Compyle: execute a subset of Python on HPC platforms
 ======================================================
 
-|Travis Status| |Appveyor Status| |Coverage Status| |Documentation Status|
+|CI Status| |Coverage Status| |Documentation Status|
 
 
-.. |Travis Status| image:: https://travis-ci.org/pypr/compyle.svg?branch=master
-    :target: https://travis-ci.org/pypr/compyle
-.. |Appveyor Status| image:: https://ci.appveyor.com/api/projects/status/isg727d5ofn69rrm?svg=true
-    :target: https://ci.appveyor.com/project/prabhuramachandran/compyle
+.. |CI Status| image:: https://github.com/pypr/compyle/actions/workflows/tests.yml/badge.svg
+    :target: https://github.com/pypr/compyle/actions/workflows/tests.yml
 .. |Documentation Status| image:: https://readthedocs.org/projects/compyle/badge/?version=latest
     :target: https://compyle.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
