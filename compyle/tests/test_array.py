@@ -374,3 +374,33 @@ def test_linspace(backend):
     assert(dev_array[-1] < 10)
     dtype = dev_array.dtype
     assert(np.issubdtype(dtype, np.floating))
+
+
+@check_all_backends
+def test_diff(backend):
+    check_import(backend)
+    dev_array = array.ones(2, dtype=np.float32, backend=backend)
+    y = array.diff(dev_array, 1, backend=backend)
+    assert(y.__len__() == 1)
+    assert(y[0] == 0)
+    dev_array = np.linspace(0, 10, 11, dtype=np.float32)**2
+    yt = np.diff(dev_array, 2)
+    dev_array = wrap(dev_array, backend=backend)
+    y = array.diff(dev_array, 2, backend=backend)
+    for i in range(8):
+        assert(y[i] == yt[i])
+
+@check_all_backends
+def test_trapz(backend):
+    check_import(backend)
+    x = array.linspace(0, 5, 6, dtype=np.float32, backend=backend)
+    y = array.linspace(0, 5, 6, dtype=np.float32, backend=backend)
+    xn = np.linspace(0, 5, 6, dtype=np.float32)
+    yn = np.linspace(0, 5, 6, dtype=np.float32)
+    assert(array.trapz(y) == np.trapz(yn))
+    assert(array.trapz(y, x,) == np.trapz(yn, xn))
+    assert(array.trapz(y, dx=3) == np.trapz(yn, dx=3))
+
+    x = array.linspace(0, 5, 5, dtype=np.float32, backend=backend)
+    with pytest.raises(Exception):
+        array.trapz(y, x)

@@ -4,7 +4,7 @@ import time
 from pytools import memoize, memoize_method
 
 from .config import get_config
-from .types import (annotate, dtype_to_ctype,
+from .types import (annotate, declare, dtype_to_ctype,
                     dtype_to_knowntype, knowntype_to_ctype)
 from .template import Template
 from .sort import radix_sort
@@ -403,6 +403,48 @@ def linspace(start, stop, num, dtype=np.float64, backend='opencl',
     return wrap_array(out, backend)
 
 
+@annotate
+def nDiff(i, y, x, b, lb):
+    it = declare('int', 1)
+    for it in range(lb):
+        y[i] += x[it+i] * b[it]
+
+def diff(a, n, backend=None):
+    """
+    calculate the first discrete difference of the given array.
+
+    The first difference is given by ``out[i] = a[i+1] - a[i]`` along
+    the given axis, higher differences are calculated by using `diff`
+    recursively.
+    """
+    if n == 0:
+        return a
+    if n < 0:
+        raise ValueError(
+            "order must be non-negative but got " + repr(n))
+    if(a.__len__() < n+1):
+        raise ValueError('Array a should have length at least n+1, but got {}'.format(a.__len__()))
+    
+    if backend is None:
+        backend = a.backend
+
+    if backend == 'opencl' or backend == 'cuda':
+        from compyle.api import Elementwise
+        import scipy.special as ss
+        binom_coeff = np.zeros(n+1)
+        sign_fac = 1 if (n % 2 == 0) else -1
+        for i in range(n+1):
+            binom_coeff[i] = ss.comb(n,i) * (-1)**i * sign_fac
+        binom_coeff = wrap(binom_coeff, backend=backend)
+        len_ar = a.__len__()
+        y = zeros(len_ar - n, dtype=a.dtype, backend=backend)
+        diff_kernel = Elementwise(nDiff, backend=backend)
+        diff_kernel(y, a, binom_coeff, len(binom_coeff))
+        return y
+    else:
+        return wrap_array(np.diff(a, n), backend=backend)
+
+
 def minimum(ary, backend=None):
     if backend is None:
         backend = ary.backend
@@ -453,6 +495,21 @@ def dot(a, b, backend=None):
     if backend == 'cuda':
         import pycuda.gpuarray as gpuarray
         return gpuarray.dot(a.dev, b.dev).get()
+
+
+def trapz(y, x=None, dx=1.0, backend=None):
+    if backend == None:
+        backend = y.backend
+    if x is None:
+        d = dx
+        out = (sum(y, backend=backend) - 0.5 * (y[0] + y[-1])) * d
+    else:
+        if not x.__len__() == (y.__len__()):
+            raise Exception('arrays x and y should be of the same size')
+        d = diff(x, 1, backend=backend)
+        sum_ar = (y[:-1] + y[1:])
+        out = dot(d, sum_ar) * 0.5
+    return out
 
 
 @memoize(key=lambda *args: tuple(args[0]))
