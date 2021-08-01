@@ -781,6 +781,8 @@ class OpenCLConverter(CConverter):
     def render_atomic(self, func, arg):
         if func == 'atomic_inc':
             return 'atomic_inc(&%s)' % self.visit(arg)
+        if func == 'atomic_dec':
+            return 'atomic_dec(&%s)' % self.visit(arg)
         else:
             raise NotImplementedError("Only atomic_inc supported right now")
 
@@ -831,5 +833,7 @@ class CUDAConverter(OpenCLConverter):
     def render_atomic(self, func, arg):
         if func == 'atomic_inc':
             return 'atomicAdd(&%s, 1)' % self.visit(arg)
+        if func == 'atomic_dec':
+            return 'atomicAdd(&%s, -1)' % self.visit(arg)
         else:
             raise NotImplementedError("Only atomic_inc supported right now")

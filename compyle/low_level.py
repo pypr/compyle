@@ -321,6 +321,14 @@ class _atomic_inc(Extern):
         pass
 
 
+class _atomic_dec(Extern):
+    def code(self, backend):
+        return ''
+
+    def __call__(self, *args, **kw):
+        pass
+
+
 class _cast(Extern):
     def code(self, backend):
         return ''
@@ -334,6 +342,7 @@ parallel = _parallel()
 nogil = _nogil()
 address = _address()
 atomic_inc = _atomic_inc()
+atomic_dec = _atomic_dec()
 cast = _cast()
 
 
