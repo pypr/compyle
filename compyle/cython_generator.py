@@ -480,7 +480,8 @@ class CythonGenerator(object):
         # using something like 'intp'
         call_arg = call[11:-1].strip()
         if self._config.use_openmp and not is_serial:
-            return['openmp.omp_set_lock(&cy_lock)', '%s = %s' % (name, call_arg),
+            return['openmp.omp_set_lock(&cy_lock)',
+                   '%s = %s' % (name, call_arg),
                    '%s += 1' % call_arg, 'openmp.omp_unset_lock(&cy_lock)']
         else:
             return ['%s = %s' % (name, call_arg), '%s += 1' % call_arg]
@@ -490,7 +491,8 @@ class CythonGenerator(object):
         # using something like 'intp'
         call_arg = call[11:-1].strip()
         if self._config.use_openmp and not is_serial:
-            return['openmp.omp_set_lock(&cy_lock)', '%s = %s' % (name, call_arg),
+            return['openmp.omp_set_lock(&cy_lock)',
+                   '%s = %s' % (name, call_arg),
                    '%s -= 1' % call_arg, 'openmp.omp_unset_lock(&cy_lock)']
         else:
             return ['%s = %s' % (name, call_arg), '%s -= 1' % call_arg]
@@ -541,7 +543,8 @@ class CythonGenerator(object):
                 name = words[0]
                 call = words[1]
                 indent = line[:line.index(name)]
-                stmts = self._handle_atomic_statement_inc(name, call, is_serial)
+                stmts = self._handle_atomic_statement_inc(
+                    name, call, is_serial)
                 result = ''
                 for stmt in stmts:
                     result += indent + stmt + '\n'
@@ -551,7 +554,8 @@ class CythonGenerator(object):
                 name = words[0]
                 call = words[1]
                 indent = line[:line.index(name)]
-                stmts = self._handle_atomic_statement_dec(name, call, is_serial)
+                stmts = self._handle_atomic_statement_dec(
+                    name, call, is_serial)
                 result = ''
                 for stmt in stmts:
                     result += indent + stmt + '\n'

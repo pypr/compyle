@@ -534,7 +534,7 @@ class TestParallelUtils(ParallelUtilsBase, unittest.TestCase):
 
         # Then
         self.assertTrue(result[0] == 50000)
-    
+
     def _test_atomic_dec(self, backend):
         # Given
         a = np.random.randint(0, 100, 50000, dtype=np.int32)

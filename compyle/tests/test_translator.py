@@ -1368,6 +1368,7 @@ def test_atomic_inc_works():
 
     assert code.strip() == expect.strip()
 
+
 def test_atomic_dec_works():
     # Given
     def f(x=1.0):
@@ -1400,6 +1401,7 @@ def test_atomic_dec_works():
     ''')
 
     assert code.strip() == expect.strip()
+
 
 def test_cast_works():
     # Given
