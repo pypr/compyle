@@ -409,6 +409,7 @@ def nDiff(i, y, x, b, lb):
     for it in range(lb):
         y[i] += x[it+i] * b[it]
 
+
 def diff(a, n, backend=None):
     """
     calculate the first discrete difference of the given array.
@@ -423,8 +424,10 @@ def diff(a, n, backend=None):
         raise ValueError(
             "order must be non-negative but got " + repr(n))
     if(a.__len__() < n+1):
-        raise ValueError('Array a should have length at least n+1, but got {}'.format(a.__len__()))
-    
+        raise ValueError(
+            "Array a should have length at least n+1, but got "
+            + str(a.__len__()))
+
     if backend is None:
         backend = a.backend
 
@@ -434,7 +437,7 @@ def diff(a, n, backend=None):
         binom_coeff = np.zeros(n+1)
         sign_fac = 1 if (n % 2 == 0) else -1
         for i in range(n+1):
-            binom_coeff[i] = ss.comb(n,i) * (-1)**i * sign_fac
+            binom_coeff[i] = ss.comb(n, i) * (-1)**i * sign_fac
         binom_coeff = wrap(binom_coeff, backend=backend)
         len_ar = a.__len__()
         y = zeros(len_ar - n, dtype=a.dtype, backend=backend)
@@ -498,7 +501,7 @@ def dot(a, b, backend=None):
 
 
 def trapz(y, x=None, dx=1.0, backend=None):
-    if backend == None:
+    if backend is None:
         backend = y.backend
     if x is None:
         d = dx

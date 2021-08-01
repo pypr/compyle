@@ -4,6 +4,7 @@ import numpy as np
 from ..array import Array
 from ..config import get_config
 import compyle.array as array
+from compyle.api import wrap
 
 
 check_all_backends = pytest.mark.parametrize('backend',
@@ -379,16 +380,25 @@ def test_linspace(backend):
 @check_all_backends
 def test_diff(backend):
     check_import(backend)
+    dev_array = array.ones(1, dtype=np.float32, backend=backend)
+    with pytest.raises(ValueError):
+        y = array.diff(dev_array, 1)
+    y = array.diff(dev_array, 0)
+    assert(y[0] == dev_array[0])
+
     dev_array = array.ones(2, dtype=np.float32, backend=backend)
-    y = array.diff(dev_array, 1, backend=backend)
+    with pytest.raises(ValueError):
+        y = array.diff(dev_array, -1)
+    y = array.diff(dev_array, 1)
     assert(y.__len__() == 1)
     assert(y[0] == 0)
     dev_array = np.linspace(0, 10, 11, dtype=np.float32)**2
     yt = np.diff(dev_array, 2)
     dev_array = wrap(dev_array, backend=backend)
-    y = array.diff(dev_array, 2, backend=backend)
+    y = array.diff(dev_array, 2)
     for i in range(8):
         assert(y[i] == yt[i])
+
 
 @check_all_backends
 def test_trapz(backend):
