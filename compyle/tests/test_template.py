@@ -3,7 +3,7 @@ from textwrap import dedent
 import numpy as np
 
 from ..array import wrap
-from ..types import annotate
+from ..types import annotate, KnownType
 from ..template import Template
 from ..parallel import Elementwise
 
@@ -115,7 +115,7 @@ def test_template_with_extra_args():
 
     # Then
     assert result == 2
-    assert extra.__annotations__ == {'x': 'int'}
+    assert extra.__annotations__ == {'x': KnownType('int')}
 
 
 def test_template_inject_works():

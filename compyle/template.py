@@ -2,6 +2,7 @@ import ast
 import inspect
 from textwrap import dedent
 
+from .types import kwtype_to_annotation
 import mako.template
 
 
@@ -53,7 +54,8 @@ class Template(object):
         )
         src = sig + self.render(template)
         annotations = getattr(self.template, '__annotations__', {})
-        annotations.update(extra_annotations)
+        data = kwtype_to_annotation(extra_annotations)
+        annotations.update(data)
         return src, annotations
 
     def inject(self, func, indent=1):
