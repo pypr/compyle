@@ -298,6 +298,7 @@ def _get_type(type):
                'the pre-declared types.'.format(type=str(type)))
         raise TypeError(msg)
 
+
 def kwtype_to_annotation(kw):
     """Convert type to a KnownType"""
     data = {}
