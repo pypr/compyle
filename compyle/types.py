@@ -269,12 +269,7 @@ def annotate(func=None, **kw):
             func.is_jit = True
             return func
     else:
-        for name, type in kw.items():
-            if isinstance(type, str) and ',' in type:
-                for x in type.split(','):
-                    data[_clean_name(x.strip())] = _get_type(name)
-            else:
-                data[_clean_name(name)] = _get_type(type)
+        data = kwtype_to_annotation(kw)
 
         def wrapper(func):
             try:
@@ -302,3 +297,17 @@ def _get_type(type):
         msg = ('Unknown type {type}, not a KnownType and not one of '
                'the pre-declared types.'.format(type=str(type)))
         raise TypeError(msg)
+
+
+def kwtype_to_annotation(kw):
+    """Convert type to a KnownType"""
+    data = {}
+
+    for name, type in kw.items():
+        if isinstance(type, str) and ',' in type:
+            for x in type.split(','):
+                data[_clean_name(x.strip())] = _get_type(name)
+        else:
+            data[_clean_name(name)] = _get_type(type)
+
+    return data
