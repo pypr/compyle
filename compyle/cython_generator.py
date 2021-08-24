@@ -475,15 +475,27 @@ class CythonGenerator(object):
         ctype = call_args[1].strip()[1:-1]
         return '%s = <%s> (%s)' % (name, ctype, expr)
 
-    def _handle_atomic_statement(self, name, call, is_serial):
+    def _handle_atomic_statement_inc(self, name, call, is_serial):
         # FIXME: This won't handle casting to pointers
         # using something like 'intp'
         call_arg = call[11:-1].strip()
         if self._config.use_openmp and not is_serial:
-            return['openmp.omp_set_lock(&cy_lock)', '%s = %s' % (name, call_arg),
+            return['openmp.omp_set_lock(&cy_lock)',
+                   '%s = %s' % (name, call_arg),
                    '%s += 1' % call_arg, 'openmp.omp_unset_lock(&cy_lock)']
         else:
             return ['%s = %s' % (name, call_arg), '%s += 1' % call_arg]
+
+    def _handle_atomic_statement_dec(self, name, call, is_serial):
+        # FIXME: This won't handle casting to pointers
+        # using something like 'intp'
+        call_arg = call[11:-1].strip()
+        if self._config.use_openmp and not is_serial:
+            return['openmp.omp_set_lock(&cy_lock)',
+                   '%s = %s' % (name, call_arg),
+                   '%s -= 1' % call_arg, 'openmp.omp_unset_lock(&cy_lock)']
+        else:
+            return ['%s = %s' % (name, call_arg), '%s -= 1' % call_arg]
 
     def _parse_function(self, obj, declarations=None, is_serial=False):
         c_code, py_code = self._get_method_wrapper(obj, indent=' ' * 4,
@@ -531,7 +543,19 @@ class CythonGenerator(object):
                 name = words[0]
                 call = words[1]
                 indent = line[:line.index(name)]
-                stmts = self._handle_atomic_statement(name, call, is_serial)
+                stmts = self._handle_atomic_statement_inc(
+                    name, call, is_serial)
+                result = ''
+                for stmt in stmts:
+                    result += indent + stmt + '\n'
+                return '', result + '\n'
+            elif words[1].startswith('atomic_dec') and \
+                    not line.strip().startswith('#'):
+                name = words[0]
+                call = words[1]
+                indent = line[:line.index(name)]
+                stmts = self._handle_atomic_statement_dec(
+                    name, call, is_serial)
                 result = ''
                 for stmt in stmts:
                     result += indent + stmt + '\n'

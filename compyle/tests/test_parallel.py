@@ -8,7 +8,7 @@ from ..config import get_config, use_config
 from ..array import wrap, zeros
 from ..types import annotate, declare
 from ..parallel import Elementwise, Reduction, Scan
-from ..low_level import atomic_inc
+from ..low_level import atomic_inc, atomic_dec
 from .test_jit import g
 
 MY_CONST = 42
@@ -190,6 +190,21 @@ class ParallelUtilsBase(object):
     def test_atomic_inc_cuda(self):
         importorskip('pycuda')
         self._test_atomic_inc(backend='cuda')
+
+    def test_atomic_dec_cython(self):
+        self._test_atomic_dec(backend='cython')
+
+    def test_atomic_dec_cython_parallel(self):
+        with use_config(use_openmp=True):
+            self._test_atomic_dec(backend='cython')
+
+    def test_atomic_dec_opencl(self):
+        importorskip('pyopencl')
+        self._test_atomic_dec(backend='opencl')
+
+    def test_atomic_dec_cuda(self):
+        importorskip('pycuda')
+        self._test_atomic_dec(backend='cuda')
 
     def test_repeated_scans_with_different_settings(self):
         importorskip('pyopencl')
@@ -520,6 +535,25 @@ class TestParallelUtils(ParallelUtilsBase, unittest.TestCase):
         # Then
         self.assertTrue(result[0] == 50000)
 
+    def _test_atomic_dec(self, backend):
+        # Given
+        a = np.random.randint(0, 100, 50000, dtype=np.int32)
+        result = zeros(1, dtype=np.int32, backend=backend)
+
+        a = wrap(a, backend=backend)
+
+        @annotate(gintp='x, result', i='int')
+        def reduce_knl(i, x, result):
+            b = declare('int')
+            b = atomic_dec(result[0])
+
+        # When
+        knl = Elementwise(reduce_knl, backend=backend)
+        knl(a, result)
+
+        # Then
+        self.assertTrue(result[0] == -50000)
+
 
 class TestParallelUtilsJIT(ParallelUtilsBase, unittest.TestCase):
     def setUp(self):
@@ -835,3 +869,22 @@ class TestParallelUtilsJIT(ParallelUtilsBase, unittest.TestCase):
 
         # Then
         self.assertTrue(result[0] == 50000)
+
+    def _test_atomic_dec(self, backend):
+        # Given
+        a = np.random.randint(0, 100, 50000, dtype=np.int32)
+        result = zeros(1, dtype=np.int32, backend=backend)
+
+        a = wrap(a, backend=backend)
+
+        @annotate
+        def reduce_knl(i, x, result):
+            b = declare('int')
+            b = atomic_dec(result[0])
+
+        # When
+        knl = Elementwise(reduce_knl, backend=backend)
+        knl(a, result)
+
+        # Then
+        self.assertTrue(result[0] == -50000)

@@ -237,6 +237,8 @@ class AnnotationHelper(ast.NodeVisitor):
             return self.visit_cast(node)
         if node.func.id == 'atomic_inc':
             return self.visit(node.args[0])
+        if node.func.id == 'atomic_dec':
+            return self.visit(node.args[0])
         if node.func.id == 'address':
             return self.visit_address(node)
         if node.func.id in self.external_funcs:
