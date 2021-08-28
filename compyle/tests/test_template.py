@@ -87,6 +87,7 @@ def test_that_source_code_is_available():
         print(123)
     ''')
     assert dummy.source.strip() == expect.strip()
+    assert dummy.is_jit is True
 
 
 def test_template_usable_in_code_generation():
@@ -104,6 +105,7 @@ def test_template_usable_in_code_generation():
     # Then
     y.pull()
     np.testing.assert_almost_equal(y, 2.0*x.data)
+    assert twice.is_jit is False
 
 
 def test_template_with_extra_args():

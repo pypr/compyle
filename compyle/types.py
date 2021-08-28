@@ -272,6 +272,9 @@ def annotate(func=None, **kw):
         data = kwtype_to_annotation(kw)
 
         def wrapper(func):
+            # For jitted functions, we should retain
+            # the is_jit attribute when we annotate the function.
+            func.is_jit = getattr(func, 'is_jit', False)
             try:
                 func.__annotations__ = data
             except AttributeError:

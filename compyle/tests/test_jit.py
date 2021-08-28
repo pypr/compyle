@@ -16,9 +16,9 @@ def g(x):
     return x
 
 
-@annotate(x='int', return_='int')
+@annotate(x='long', return_='long')
 def g_nonjit(x):
-    return x
+    return x + 1
 
 
 @annotate
@@ -122,6 +122,9 @@ class TestAnnotationHelper(unittest.TestCase):
 
         # Then
         assert helper.external_funcs['g_nonjit'].arg_types['x'] == 'int'
+        # Should not clobber the nonjit function annotations.
+        assert g_nonjit.__annotations__['x'].type == 'long'
+        assert g_nonjit.__annotations__['return'].type == 'long'
 
     def test_subscript_as_call_arg(self):
         # Given

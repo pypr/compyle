@@ -11,7 +11,7 @@ from .config import get_config
 from .cython_generator import CythonGenerator
 from .transpiler import Transpiler, BUILTINS
 from .types import (dtype_to_ctype, get_declare_info,
-                    dtype_to_knowntype, annotate, BITS)
+                    dtype_to_knowntype, annotate, BITS, KnownType)
 from .extern import Extern
 from .utils import getsourcelines
 from .profile import profile
@@ -120,8 +120,7 @@ class AnnotationHelper(ast.NodeVisitor):
             Function called is not marked by the annotate decorator. Argument
             type defaulting to 'double'. If the type is not 'double', store
             the value in a variable of appropriate type and use the variable
-            '''
-                            )
+        ''')
 
     def get_declare_type(self, type_str):
         kind, address_space, ctype, shape = get_declare_info(type_str)
@@ -151,14 +150,19 @@ class AnnotationHelper(ast.NodeVisitor):
             name, self.undecl_var_types.get(name, 'double'))
 
     def get_return_type(self):
-        return self.arg_types.get('return_', 'double')
+        if getattr(self.func, 'is_jit', False):
+            return self.arg_types.get('return_', 'double')
+        else:
+            annotations = getattr(self.func, '__annotations__', {})
+            return annotations.get('return', KnownType('double')).type
 
     def annotate(self):
-        src = dedent('\n'.join(getsourcelines(self.func)[0]))
-        self._src = src.splitlines()
-        code = ast.parse(src)
-        self.visit(code)
-        self.func = annotate(self.func, **self.arg_types)
+        if getattr(self.func, 'is_jit', False):
+            src = dedent('\n'.join(getsourcelines(self.func)[0]))
+            self._src = src.splitlines()
+            code = ast.parse(src)
+            self.visit(code)
+            self.func = annotate(self.func, **self.arg_types)
         return self.get_missing_declarations(self.undecl_var_types)
 
     def recursive_annotate(self, f, node):

@@ -29,6 +29,7 @@ class Template(object):
         exec(src, namespace)
         f = namespace[self.name]
         f.__module__ = self.__module__
+        f.is_jit = len(annotations) == 0
         try:
             f.__annotations__ = annotations
         except AttributeError:
