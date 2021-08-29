@@ -453,7 +453,7 @@ class CConverter(ast.NodeVisitor):
         if node.orelse:
             self.error('For/else not supported.', node.orelse[0])
         args = node.iter.args
-        
+
         # If the stop or step elements are not numbers, then the semantics of a
         # for i in range can be very different from the translated C as in C,
         # one could change the stop or increment at each step.  This is not
