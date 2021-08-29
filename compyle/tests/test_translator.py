@@ -741,15 +741,15 @@ def test_for_with_symbols():
         ;
     }
 
-    __cpy_stop_0 = (n + 1);
-    long __cpy_step_0 = step();
-    if (__cpy_step_0 < 0) {
-        for (long i=0; i>__cpy_stop_0; i+=__cpy_step_0) {
+    long __cpy_stop_1 = (n + 1);
+    long __cpy_step_1 = step();
+    if (__cpy_step_1 < 0) {
+        for (long i=0; i>__cpy_stop_1; i+=__cpy_step_1) {
             ;
         }
     }
     else {
-        for (long i=0; i<__cpy_stop_0; i+=__cpy_step_0) {
+        for (long i=0; i<__cpy_stop_1; i+=__cpy_step_1) {
             ;
         }
     }
@@ -793,21 +793,75 @@ def test_nested_for_with_symbols():
         }
     }
 
-    __cpy_stop_0 = (n + 1);
-    for (long i=0; i<__cpy_stop_0; i+=1) {
-        long __cpy_stop_1 = (n + 2);
-        long __cpy_step_1 = step();
-        if (__cpy_step_1 < 0) {
-            for (long j=0; j>__cpy_stop_1; j+=__cpy_step_1) {
+    long __cpy_stop_2 = (n + 1);
+    for (long i=0; i<__cpy_stop_2; i+=1) {
+        long __cpy_stop_3 = (n + 2);
+        long __cpy_step_3 = step();
+        if (__cpy_step_3 < 0) {
+            for (long j=0; j>__cpy_stop_3; j+=__cpy_step_3) {
                 ;
             }
         }
         else {
-            for (long j=0; j<__cpy_stop_1; j+=__cpy_step_1) {
+            for (long j=0; j<__cpy_stop_3; j+=__cpy_step_3) {
                 ;
             }
         }
     }
+    ''')
+    assert code.strip() == expect.strip()
+
+
+def test_with_two_functions():
+    # Given
+    src = dedent('''
+    def f():
+        n = declare('int')
+        n = 20
+        for i in range(n):
+            pass
+        for i in range(n):
+            pass
+    def g():
+        n = declare('int')
+        n = 20
+        for i in range(n):
+            pass
+        for i in range(n):
+            pass
+    ''')
+    code = py2c(src)
+
+    expect = dedent('''
+    void f()
+    {
+        int n;
+        n = 20;
+        long __cpy_stop_0 = n;
+        for (long i=0; i<__cpy_stop_0; i+=1) {
+            ;
+        }
+        long __cpy_stop_1 = n;
+        for (long i=0; i<__cpy_stop_1; i+=1) {
+            ;
+        }
+    }
+
+    void g()
+    {
+        int n;
+        n = 20;
+        long __cpy_stop_0 = n;
+        for (long i=0; i<__cpy_stop_0; i+=1) {
+            ;
+        }
+        long __cpy_stop_1 = n;
+        for (long i=0; i<__cpy_stop_1; i+=1) {
+            ;
+        }
+    }
+
+
     ''')
     assert code.strip() == expect.strip()
 
