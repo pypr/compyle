@@ -11,6 +11,7 @@ import pycuda._mymako as mako
 from pycuda.tools import (dtype_to_ctype, bitlog2,
                           context_dependent_memoize, ScalarArg, VectorArg)
 import pycuda.gpuarray as gpuarray
+from compyle.thrust.sort import argsort
 import pycuda.driver as drv
 from pycuda.compiler import SourceModule as _SourceModule
 from pytools import memoize

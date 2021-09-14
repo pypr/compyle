@@ -4,11 +4,12 @@ import time
 from pytools import memoize, memoize_method
 
 from .config import get_config
-from .types import (annotate, declare, dtype_to_ctype,
+from .types import (annotate, dtype_to_ctype, ctype_to_dtype, declare,
                     dtype_to_knowntype, knowntype_to_ctype)
 from .template import Template
 from .sort import radix_sort
 from .profile import profile
+from .parallel import Elementwise
 
 
 try:
@@ -16,7 +17,7 @@ try:
     from .cuda import set_context
     set_context()
     # if pycuda.VERSION >= (2014, 1):
-    if False:
+    if True:
         def cu_bufint(arr, nbytes, offset):
             return arr.gpudata.as_buffer(nbytes, offset)
     else:
@@ -123,8 +124,8 @@ def minmax_collector_key(device, dtype, props, name, *args):
 
 
 @memoize(key=minmax_collector_key)
-def make_collector_dtype(device, dtype, props, name,
-                         only_min, only_max, backend):
+def make_collector_dtype(device, dtype, props, name, only_min, only_max,
+                         backend):
     fields = [("pad", np.int32)]
 
     for prop in props:
@@ -331,6 +332,10 @@ def empty(n, dtype, backend='cython'):
     return wrap_array(out, backend)
 
 
+def empty_like(x):
+    return empty(x.length, x.dtype, x.backend)
+
+
 def zeros(n, dtype, backend='cython'):
     if backend == 'opencl':
         import pyopencl.array as gpuarray
@@ -513,6 +518,33 @@ def trapz(y, x=None, dx=1.0, backend=None):
         sum_ar = (y[:-1] + y[1:])
         out = dot(d, sum_ar) * 0.5
     return out
+
+
+def where_elwise(i, condition, x, y,  ans):
+    if condition[i]:
+        ans[i] = x[i]
+    else:
+        ans[i] = y[i]
+
+
+def where(condition, x, y, backend=None):
+    if backend is None:
+        backend = x.backend
+        if y.backend is not x.backend:
+            raise TypeError(
+                'x and y should have same backend, got ${x_bk} and ${y_bk}'.
+                format(x_bk=x.backend, y_bk=y.backend))
+    if x.dtype is not y.dtype:
+        raise TypeError(
+            'x and y should have same data type, got {} and {}'.format(
+                x.dtype, y.dtype))
+
+    xtype_c = 'g' + dtype_to_ctype(x.dtype) + 'p'
+    where_annotated = annotate(where_elwise)
+    e = Elementwise(where_annotated, backend=backend)
+    ans = empty(x.length, dtype=x.dtype, backend=backend)
+    e(condition, x, y, ans)
+    return ans
 
 
 @memoize(key=lambda *args: tuple(args[0]))
@@ -700,7 +732,7 @@ def out_cumsum(i, ary, out, item):
 def cumsum(ary, backend=None, out=None):
     if backend is None:
         backend = ary.backend
-    if backend == 'opencl' or backend == 'cuda':
+    if backend == 'opencl' or backend == 'cuda' or backend == 'C':
         import compyle.parallel as parallel
         if out is None:
             out = empty(ary.length, ary.dtype, backend=backend)
@@ -713,6 +745,22 @@ def cumsum(ary, backend=None, out=None):
         _out = out.dev if out is not None else out
         output = np.cumsum(ary.dev, out=_out)
         return wrap_array(output, backend)
+
+
+def take_bool_elwise(i, condition, ary, cum_sum_ar, out_ar):
+    if condition[i]:
+        out_ar[cum_sum_ar[i]-1] = ary[i]
+
+
+def take_bool(ary, condition, backend=None):
+    if backend is None:
+        backend = ary.backend
+    cumsum_ar = cumsum(condition, backend=backend)
+    out_ar = ones(cumsum_ar[-1], ary.dtype, backend=backend)
+    take_bool_elwise_an = annotate(take_bool_elwise)
+    e = Elementwise(take_bool_elwise_an, backend=backend)
+    e(condition, ary, cumsum_ar, out_ar)
+    return out_ar
 
 
 class AlignMultiple(Template):
@@ -772,6 +820,54 @@ def align(ary_list, order, out_list=None, backend=None):
     return out_list
 
 
+def gt_elwise(i, x, val, ans):
+    ans[i] = x[i] > val
+
+
+def lt_elwise(i, x, val, ans):
+    ans[i] = x[i] < val
+
+
+def ge_elwise(i, x, val, ans):
+    ans[i] = x[i] >= val
+
+
+def le_elwise(i, x, val, ans):
+    ans[i] = x[i] <= val
+
+
+def eq_elwise(i, x, val, ans):
+    ans[i] = x[i] == val
+
+
+def ne_elwise(i, x, val, ans):
+    ans[i] = x[i] is not val
+
+
+def comparison_template(func, other, arr, backend=None):
+    if backend is None:
+        backend = arr.backend
+    from compyle.parallel import Elementwise
+    other_type = dtype_to_ctype(type(other))
+    ary_type = dtype_to_ctype(arr.dtype) + 'p'
+    ans = empty(arr.length, dtype=np.int32, backend=arr.backend)
+    func_annotated = annotate(func, i='int', x=ary_type,
+                              val=other_type, ans='intp')
+    e = Elementwise(func_annotated, backend=arr.backend)
+    e(arr, other, ans)
+    return ans
+
+
+@annotate
+def add_elwise(i, a, b, out):
+    out[i] = a[i] + b[i]
+
+
+@annotate
+def sub_elwise(i, a, b, out):
+    out[i] = a[i] - b[i]
+
+
 class Array(object):
     def __init__(self, dtype, n=0, allocate=True, backend=None):
         self.backend = get_backend(backend)
@@ -802,10 +898,14 @@ class Array(object):
         if isinstance(key, slice):
             return wrap_array(self.dev[key], self.backend)
         elif isinstance(key, Array):
-            return self.align(key)
+            if key.length < self.length:
+                return self.align(key)
+            else:
+                # it should be boolean array
+                return take_bool(self, key, backend=self.backend)
         # NOTE: Not sure about this, done for PyCUDA compatibility
         if self.backend != 'cython':
-            return self.dev[key].get()
+            return self.dev[key].get().item()
         else:
             return self.dev[key]
 
@@ -823,15 +923,21 @@ class Array(object):
 
     def __add__(self, other):
         if isinstance(other, Array):
-            other = other.dev
-        ans = self.dev + other
-        return wrap_array(ans, self.backend)
+            e = Elementwise(add_elwise, backend=self.backend)
+            out = empty_like(self)
+            e(self, other, out)
+            return out
+        else:
+            return NotImplemented
 
     def __sub__(self, other):
         if isinstance(other, Array):
-            other = other.dev
-        ans = self.dev - other
-        return wrap_array(ans, self.backend)
+            e = Elementwise(sub_elwise, backend=self.backend)
+            out = empty_like(self)
+            e(self, other, out)
+            return out
+        else:
+            return NotImplemented
 
     def __radd__(self, other):
         if isinstance(other, Array):
@@ -847,6 +953,24 @@ class Array(object):
 
     def __str__(self):
         return self.dev.__str__()
+
+    def __gt__(self, other):
+        return comparison_template(gt_elwise, other, self)
+
+    def __lt__(self, other):
+        return comparison_template(lt_elwise, other, self)
+
+    def __ge__(self, other):
+        return comparison_template(ge_elwise, other, self)
+
+    def __le__(self, other):
+        return comparison_template(le_elwise, other, self)
+
+    def __eq__(self, other):
+        return comparison_template(eq_elwise, other, self)
+
+    def __ne__(self, other):
+        return comparison_template(ne_elwise, other, self)
 
     def _update_array_ref(self):
         # For PyCUDA compatibility
