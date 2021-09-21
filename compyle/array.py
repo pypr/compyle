@@ -1,4 +1,5 @@
 import numpy as np
+import math
 import mako.template as mkt
 import time
 from pytools import memoize, memoize_method
@@ -415,6 +416,10 @@ def nDiff(i, y, x, b, lb):
         y[i] += x[it+i] * b[it]
 
 
+def choose(n, x):
+    return math.factorial(n)/(math.factorial(n-x) * math.factorial(x))
+
+
 def diff(a, n, backend=None):
     """
     calculate the first discrete difference of the given array.
@@ -438,11 +443,10 @@ def diff(a, n, backend=None):
 
     if backend == 'opencl' or backend == 'cuda':
         from compyle.api import Elementwise
-        import scipy.special as ss
         binom_coeff = np.zeros(n+1)
         sign_fac = 1 if (n % 2 == 0) else -1
         for i in range(n+1):
-            binom_coeff[i] = ss.comb(n, i) * (-1)**i * sign_fac
+            binom_coeff[i] = choose(n, i) * (-1)**i * sign_fac
         binom_coeff = wrap(binom_coeff, backend=backend)
         len_ar = a.__len__()
         y = zeros(len_ar - n, dtype=a.dtype, backend=backend)
