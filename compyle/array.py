@@ -12,24 +12,14 @@ from .sort import radix_sort
 from .profile import profile
 from .parallel import Elementwise
 
-
 try:
     import pycuda
     from .cuda import set_context
     set_context()
-    # if pycuda.VERSION >= (2014, 1):
-    if True:
-        def cu_bufint(arr, nbytes, offset):
-            return arr.gpudata.as_buffer(nbytes, offset)
-    else:
-        import cffi
-        ffi = cffi.FFI()
 
-        def cu_bufint(arr, nbytes, offset):
-            return ffi.buffer(
-                ffi.cast('void *', arr.ptr + arr.itemsize * offset),
-                nbytes
-            )
+    def cu_bufint(arr, nbytes, offset):
+        return arr.gpudata.as_buffer(nbytes, offset)
+
 except ImportError as e:
     pass
 
