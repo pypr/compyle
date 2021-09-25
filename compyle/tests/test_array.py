@@ -400,21 +400,24 @@ def test_linspace(backend):
 
 
 @check_all_backends
-def test_diff(backend):
+@check_all_dtypes
+def test_diff(backend, dtype):
     check_import(backend)
-    dev_array = array.ones(1, dtype=np.float32, backend=backend)
+    if dtype == np.float64:
+        get_config().use_double = True
+    dev_array = array.ones(1, dtype=dtype, backend=backend)
     with pytest.raises(ValueError):
         y = array.diff(dev_array, 1)
     y = array.diff(dev_array, 0)
     assert(y[0] == dev_array[0])
 
-    dev_array = array.ones(2, dtype=np.float32, backend=backend)
+    dev_array = array.ones(2, dtype=dtype, backend=backend)
     with pytest.raises(ValueError):
         y = array.diff(dev_array, -1)
     y = array.diff(dev_array, 1)
-    assert(y.__len__() == 1)
+    assert(len(y) == 1)
     assert(y[0] == 0)
-    dev_array = np.linspace(0, 10, 11, dtype=np.float32)**2
+    dev_array = np.linspace(0, 10, 11, dtype=dtype)**2
     yt = np.diff(dev_array, 2)
     dev_array = wrap_array(dev_array, backend=backend)
     y = array.diff(dev_array, 2)
@@ -453,12 +456,11 @@ def test_comparison(backend, dtype, method):
     x = array.arange(0., 10., 1., dtype=dtype, backend=backend)
 
     # When
-    out = x.__getattribute__(method)(5)
+    out = getattr(x, method)(5)
 
     # Then
     x_np = np.arange(10, dtype=dtype)
-    comp = [int(i) for i in x_np.__getattribute__(method)(5)]
-
+    comp = [int(i) for i in getattr(x_np, method)(5)]
     assert np.all(out.get() == comp)
 
 

@@ -371,9 +371,9 @@ def arange(start, stop, step, dtype=np.int32, backend='cython'):
 def linspace(start, stop, num, dtype=np.float64, backend='opencl',
              endpoint=True):
     if not type(num) == int:
-        raise Exception("num should be an integer")
+        raise TypeError("num should be an integer but got %s" % type(num))
     if num <= 0:
-        raise Exception('num should be greater than 0')
+        raise ValueError("Number of samples, %s, must be positive." % num)
     if backend == 'opencl':
         import pyopencl.array as gpuarray
         from .opencl import get_queue
@@ -400,14 +400,21 @@ def linspace(start, stop, num, dtype=np.float64, backend='opencl',
 
 
 @annotate
-def nDiff(i, y, x, b, lb):
+def n_diff_elwise(i, y, x, b, lb):
     it = declare('int', 1)
     for it in range(lb):
         y[i] += x[it+i] * b[it]
 
 
+@memoize
 def choose(n, x):
     return math.factorial(n)/(math.factorial(n-x) * math.factorial(x))
+
+
+@memoize
+def diff_kernel(backend, dtype):
+    e = Elementwise(n_diff_elwise, backend=backend)
+    return e
 
 
 def diff(a, n, backend=None):
@@ -423,10 +430,10 @@ def diff(a, n, backend=None):
     if n < 0:
         raise ValueError(
             "order must be non-negative but got " + repr(n))
-    if(a.__len__() < n+1):
+    if(len(a) < n+1):
         raise ValueError(
             "Array a should have length at least n+1, but got "
-            + str(a.__len__()))
+            + str(len(a)))
 
     if backend is None:
         backend = a.backend
@@ -438,10 +445,10 @@ def diff(a, n, backend=None):
         for i in range(n+1):
             binom_coeff[i] = choose(n, i) * (-1)**i * sign_fac
         binom_coeff = wrap(binom_coeff, backend=backend)
-        len_ar = a.__len__()
+        len_ar = len(a)
         y = zeros(len_ar - n, dtype=a.dtype, backend=backend)
-        diff_kernel = Elementwise(nDiff, backend=backend)
-        diff_kernel(y, a, binom_coeff, len(binom_coeff))
+        e = diff_kernel(backend, a.dtype)
+        e(y, a, binom_coeff, len(binom_coeff))
         return y
     else:
         return wrap_array(np.diff(a, n), backend=backend)
@@ -506,7 +513,7 @@ def trapz(y, x=None, dx=1.0, backend=None):
         d = dx
         out = (sum(y, backend=backend) - 0.5 * (y[0] + y[-1])) * d
     else:
-        if not x.__len__() == (y.__len__()):
+        if not len(x) == (len(y)):
             raise Exception('arrays x and y should be of the same size')
         d = diff(x, 1, backend=backend)
         sum_ar = (y[:-1] + y[1:])
@@ -521,6 +528,13 @@ def where_elwise(i, condition, x, y,  ans):
         ans[i] = y[i]
 
 
+@memoize
+def where_kernel(backend, dtype):
+    where_annotated = annotate(where_elwise)
+    e = Elementwise(where_annotated, backend=backend)
+    return e
+
+
 def where(condition, x, y, backend=None):
     if backend is None:
         backend = x.backend
@@ -533,9 +547,7 @@ def where(condition, x, y, backend=None):
             'x and y should have same data type, got {} and {}'.format(
                 x.dtype, y.dtype))
 
-    xtype_c = 'g' + dtype_to_ctype(x.dtype) + 'p'
-    where_annotated = annotate(where_elwise)
-    e = Elementwise(where_annotated, backend=backend)
+    e = where_kernel(backend, x.dtype)
     ans = empty(x.length, dtype=x.dtype, backend=backend)
     e(condition, x, y, ans)
     return ans
@@ -726,7 +738,7 @@ def out_cumsum(i, ary, out, item):
 def cumsum(ary, backend=None, out=None):
     if backend is None:
         backend = ary.backend
-    if backend == 'opencl' or backend == 'cuda' or backend == 'C':
+    if backend == 'opencl' or backend == 'cuda':
         import compyle.parallel as parallel
         if out is None:
             out = empty(ary.length, ary.dtype, backend=backend)
@@ -741,9 +753,16 @@ def cumsum(ary, backend=None, out=None):
         return wrap_array(output, backend)
 
 
+@annotate
 def take_bool_elwise(i, condition, ary, cum_sum_ar, out_ar):
     if condition[i]:
         out_ar[cum_sum_ar[i]-1] = ary[i]
+
+
+@memoize
+def take_bool_kernel(backend, dtype_ar):
+    e = Elementwise(take_bool_elwise, backend=backend)
+    return e
 
 
 def take_bool(ary, condition, backend=None):
@@ -751,8 +770,7 @@ def take_bool(ary, condition, backend=None):
         backend = ary.backend
     cumsum_ar = cumsum(condition, backend=backend)
     out_ar = ones(cumsum_ar[-1], ary.dtype, backend=backend)
-    take_bool_elwise_an = annotate(take_bool_elwise)
-    e = Elementwise(take_bool_elwise_an, backend=backend)
+    e = take_bool_kernel(backend, ary.dtype)
     e(condition, ary, cumsum_ar, out_ar)
     return out_ar
 
@@ -838,6 +856,14 @@ def ne_elwise(i, x, val, ans):
     ans[i] = x[i] is not val
 
 
+@memoize
+def comparison_kernel(func, backend, ary_type, other_type):
+    func_annotated = annotate(func, i='int', x=ary_type,
+                              val=other_type, ans='intp')
+    e = Elementwise(func_annotated, backend=backend)
+    return e
+
+
 def comparison_template(func, other, arr, backend=None):
     if backend is None:
         backend = arr.backend
@@ -845,9 +871,7 @@ def comparison_template(func, other, arr, backend=None):
     other_type = dtype_to_ctype(type(other))
     ary_type = dtype_to_ctype(arr.dtype) + 'p'
     ans = empty(arr.length, dtype=np.int32, backend=arr.backend)
-    func_annotated = annotate(func, i='int', x=ary_type,
-                              val=other_type, ans='intp')
-    e = Elementwise(func_annotated, backend=arr.backend)
+    e = comparison_kernel(func, arr.backend, ary_type, other_type)
     e(arr, other, ans)
     return ans
 
@@ -855,6 +879,12 @@ def comparison_template(func, other, arr, backend=None):
 @annotate
 def add_elwise(i, a, b, out):
     out[i] = a[i] + b[i]
+
+
+@memoize
+def add_kernel(backend, dtype):
+    e = Elementwise(add_elwise, backend=backend)
+    return e
 
 
 @annotate
@@ -917,7 +947,7 @@ class Array(object):
 
     def __add__(self, other):
         if isinstance(other, Array):
-            e = Elementwise(add_elwise, backend=self.backend)
+            e = add_kernel(self.backend, self.dtype)
             out = empty_like(self)
             e(self, other, out)
             return out
