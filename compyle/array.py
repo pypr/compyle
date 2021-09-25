@@ -421,9 +421,7 @@ def diff(a, n, backend=None):
     """
     calculate the first discrete difference of the given array.
 
-    The first difference is given by ``out[i] = a[i+1] - a[i]`` along
-    the given axis, higher differences are calculated by using `diff`
-    recursively.
+    The first difference is given by ``out[i] = a[i+1] - a[i]``
     """
     if n == 0:
         return a
