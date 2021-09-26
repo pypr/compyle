@@ -1,33 +1,25 @@
 import numpy as np
+import math
 import mako.template as mkt
 import time
 from pytools import memoize, memoize_method
 
 from .config import get_config
-from .types import (annotate, dtype_to_ctype,
+from .types import (annotate, dtype_to_ctype, ctype_to_dtype, declare,
                     dtype_to_knowntype, knowntype_to_ctype)
 from .template import Template
 from .sort import radix_sort
 from .profile import profile
-
+from .parallel import Elementwise
 
 try:
     import pycuda
     from .cuda import set_context
     set_context()
-    # if pycuda.VERSION >= (2014, 1):
-    if False:
-        def cu_bufint(arr, nbytes, offset):
-            return arr.gpudata.as_buffer(nbytes, offset)
-    else:
-        import cffi
-        ffi = cffi.FFI()
 
-        def cu_bufint(arr, nbytes, offset):
-            return ffi.buffer(
-                ffi.cast('void *', arr.ptr + arr.itemsize * offset),
-                nbytes
-            )
+    def cu_bufint(arr, nbytes, offset):
+        return arr.gpudata.as_buffer(nbytes, offset)
+
 except ImportError as e:
     pass
 
@@ -123,8 +115,8 @@ def minmax_collector_key(device, dtype, props, name, *args):
 
 
 @memoize(key=minmax_collector_key)
-def make_collector_dtype(device, dtype, props, name,
-                         only_min, only_max, backend):
+def make_collector_dtype(device, dtype, props, name, only_min, only_max,
+                         backend):
     fields = [("pad", np.int32)]
 
     for prop in props:
@@ -331,6 +323,10 @@ def empty(n, dtype, backend='cython'):
     return wrap_array(out, backend)
 
 
+def empty_like(x):
+    return empty(x.length, x.dtype, x.backend)
+
+
 def zeros(n, dtype, backend='cython'):
     if backend == 'opencl':
         import pyopencl.array as gpuarray
@@ -370,6 +366,90 @@ def arange(start, stop, step, dtype=np.int32, backend='cython'):
     else:
         out = np.arange(start, stop, step, dtype=dtype)
     return wrap_array(out, backend)
+
+
+def linspace(start, stop, num, dtype=np.float64, backend='opencl',
+             endpoint=True):
+    if not type(num) == int:
+        raise TypeError("num should be an integer but got %s" % type(num))
+    if num <= 0:
+        raise ValueError("Number of samples, %s, must be positive." % num)
+    if backend == 'opencl':
+        import pyopencl.array as gpuarray
+        from .opencl import get_queue
+        if endpoint:
+            delta = (stop-start)/(num-1)
+        else:
+            delta = (stop-start)/num
+        out = gpuarray.arange(get_queue(), 0, num,
+                              1, dtype=dtype)
+        out = out * delta+start
+    elif backend == 'cuda':
+        import pycuda.gpuarray as gpuarray
+        import pycuda.autoinit
+        if endpoint:
+            delta = (stop-start)/(num-1)
+        else:
+            delta = (stop-start)/num
+        out = gpuarray.arange(0, num, 1, dtype=dtype)
+        out = out*delta+start
+    else:
+        out = np.linspace(start, stop, num,
+                          endpoint=endpoint, dtype=dtype)
+    return wrap_array(out, backend)
+
+
+@annotate
+def n_diff_elwise(i, y, x, b, lb):
+    it = declare('int', 1)
+    for it in range(lb):
+        y[i] += x[it+i] * b[it]
+
+
+@memoize
+def choose(n, x):
+    return math.factorial(n)/(math.factorial(n-x) * math.factorial(x))
+
+
+@memoize
+def diff_kernel(backend, dtype):
+    e = Elementwise(n_diff_elwise, backend=backend)
+    return e
+
+
+def diff(a, n, backend=None):
+    """
+    calculate the first discrete difference of the given array.
+
+    The first difference is given by ``out[i] = a[i+1] - a[i]``
+    """
+    if n == 0:
+        return a
+    if n < 0:
+        raise ValueError(
+            "order must be non-negative but got " + repr(n))
+    if(len(a) < n+1):
+        raise ValueError(
+            "Array a should have length at least n+1, but got "
+            + str(len(a)))
+
+    if backend is None:
+        backend = a.backend
+
+    if backend == 'opencl' or backend == 'cuda':
+        from compyle.api import Elementwise
+        binom_coeff = np.zeros(n+1)
+        sign_fac = 1 if (n % 2 == 0) else -1
+        for i in range(n+1):
+            binom_coeff[i] = choose(n, i) * (-1)**i * sign_fac
+        binom_coeff = wrap(binom_coeff, backend=backend)
+        len_ar = len(a)
+        y = zeros(len_ar - n, dtype=a.dtype, backend=backend)
+        e = diff_kernel(backend, a.dtype)
+        e(y, a, binom_coeff, len(binom_coeff))
+        return y
+    else:
+        return wrap_array(np.diff(a, n), backend=backend)
 
 
 def minimum(ary, backend=None):
@@ -422,6 +502,52 @@ def dot(a, b, backend=None):
     if backend == 'cuda':
         import pycuda.gpuarray as gpuarray
         return gpuarray.dot(a.dev, b.dev).get()
+
+
+def trapz(y, x=None, dx=1.0, backend=None):
+    if backend is None:
+        backend = y.backend
+    if x is None:
+        d = dx
+        out = (sum(y, backend=backend) - 0.5 * (y[0] + y[-1])) * d
+    else:
+        if not len(x) == len(y):
+            raise Exception('arrays x and y should be of the same size')
+        d = diff(x, 1, backend=backend)
+        sum_ar = (y[:-1] + y[1:])
+        out = dot(d, sum_ar) * 0.5
+    return out
+
+@annotate
+def where_elwise(i, condition, x, y,  ans):
+    if condition[i]:
+        ans[i] = x[i]
+    else:
+        ans[i] = y[i]
+
+
+@memoize
+def where_kernel(backend, dtype):
+    e = Elementwise(where_elwise, backend=backend)
+    return e
+
+
+def where(condition, x, y, backend=None):
+    if backend is None:
+        backend = x.backend
+        if y.backend is not x.backend:
+            raise TypeError(
+                'x and y should have same backend, got ${x_bk} and ${y_bk}'.
+                format(x_bk=x.backend, y_bk=y.backend))
+    if x.dtype is not y.dtype:
+        raise TypeError(
+            'x and y should have same data type, got {} and {}'.format(
+                x.dtype, y.dtype))
+
+    e = where_kernel(backend, x.dtype)
+    ans = empty(x.length, dtype=x.dtype, backend=backend)
+    e(condition, x, y, ans)
+    return ans
 
 
 @memoize(key=lambda *args: tuple(args[0]))
@@ -624,6 +750,28 @@ def cumsum(ary, backend=None, out=None):
         return wrap_array(output, backend)
 
 
+@annotate
+def take_bool_elwise(i, condition, ary, cum_sum_ar, out_ar):
+    if condition[i]:
+        out_ar[cum_sum_ar[i]-1] = ary[i]
+
+
+@memoize
+def take_bool_kernel(backend, dtype_ar):
+    e = Elementwise(take_bool_elwise, backend=backend)
+    return e
+
+
+def take_bool(ary, condition, backend=None):
+    if backend is None:
+        backend = ary.backend
+    cumsum_ar = cumsum(condition, backend=backend)
+    out_ar = ones(cumsum_ar[-1], ary.dtype, backend=backend)
+    e = take_bool_kernel(backend, ary.dtype)
+    e(condition, ary, cumsum_ar, out_ar)
+    return out_ar
+
+
 class AlignMultiple(Template):
     def __init__(self, name, num_arys):
         super(AlignMultiple, self).__init__(name=name)
@@ -681,6 +829,66 @@ def align(ary_list, order, out_list=None, backend=None):
     return out_list
 
 
+def gt_elwise(i, x, val, ans):
+    ans[i] = x[i] > val
+
+
+def lt_elwise(i, x, val, ans):
+    ans[i] = x[i] < val
+
+
+def ge_elwise(i, x, val, ans):
+    ans[i] = x[i] >= val
+
+
+def le_elwise(i, x, val, ans):
+    ans[i] = x[i] <= val
+
+
+def eq_elwise(i, x, val, ans):
+    ans[i] = x[i] == val
+
+
+def ne_elwise(i, x, val, ans):
+    ans[i] = x[i] is not val
+
+
+@memoize
+def comparison_kernel(func, backend, ary_type, other_type):
+    func_annotated = annotate(func, i='int', x=ary_type,
+                              val=other_type, ans='intp')
+    e = Elementwise(func_annotated, backend=backend)
+    return e
+
+
+def comparison_template(func, other, arr, backend=None):
+    if backend is None:
+        backend = arr.backend
+    from compyle.parallel import Elementwise
+    other_type = dtype_to_ctype(type(other))
+    ary_type = dtype_to_ctype(arr.dtype) + 'p'
+    ans = empty(arr.length, dtype=np.int32, backend=arr.backend)
+    e = comparison_kernel(func, arr.backend, ary_type, other_type)
+    e(arr, other, ans)
+    return ans
+
+
+@annotate
+def add_elwise(i, a, b, out):
+    out[i] = a[i] + b[i]
+
+
+@memoize
+def add_kernel(backend, dtype):
+    e = Elementwise(add_elwise, backend=backend)
+    return e
+
+
+@annotate
+def sub_elwise(i, a, b, out):
+    out[i] = a[i] - b[i]
+
+
 class Array(object):
     def __init__(self, dtype, n=0, allocate=True, backend=None):
         self.backend = get_backend(backend)
@@ -711,10 +919,14 @@ class Array(object):
         if isinstance(key, slice):
             return wrap_array(self.dev[key], self.backend)
         elif isinstance(key, Array):
-            return self.align(key)
+            if key.length < self.length:
+                return self.align(key)
+            else:
+                # it should be boolean array
+                return take_bool(self, key, backend=self.backend)
         # NOTE: Not sure about this, done for PyCUDA compatibility
         if self.backend != 'cython':
-            return self.dev[key].get()
+            return self.dev[key].get().item()
         else:
             return self.dev[key]
 
@@ -732,15 +944,21 @@ class Array(object):
 
     def __add__(self, other):
         if isinstance(other, Array):
-            other = other.dev
-        ans = self.dev + other
-        return wrap_array(ans, self.backend)
+            e = add_kernel(self.backend, self.dtype)
+            out = empty_like(self)
+            e(self, other, out)
+            return out
+        else:
+            return NotImplemented
 
     def __sub__(self, other):
         if isinstance(other, Array):
-            other = other.dev
-        ans = self.dev - other
-        return wrap_array(ans, self.backend)
+            e = Elementwise(sub_elwise, backend=self.backend)
+            out = empty_like(self)
+            e(self, other, out)
+            return out
+        else:
+            return NotImplemented
 
     def __radd__(self, other):
         if isinstance(other, Array):
@@ -756,6 +974,24 @@ class Array(object):
 
     def __str__(self):
         return self.dev.__str__()
+
+    def __gt__(self, other):
+        return comparison_template(gt_elwise, other, self)
+
+    def __lt__(self, other):
+        return comparison_template(lt_elwise, other, self)
+
+    def __ge__(self, other):
+        return comparison_template(ge_elwise, other, self)
+
+    def __le__(self, other):
+        return comparison_template(le_elwise, other, self)
+
+    def __eq__(self, other):
+        return comparison_template(eq_elwise, other, self)
+
+    def __ne__(self, other):
+        return comparison_template(ne_elwise, other, self)
 
     def _update_array_ref(self):
         # For PyCUDA compatibility
