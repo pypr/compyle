@@ -511,14 +511,14 @@ def trapz(y, x=None, dx=1.0, backend=None):
         d = dx
         out = (sum(y, backend=backend) - 0.5 * (y[0] + y[-1])) * d
     else:
-        if not len(x) == (len(y)):
+        if not len(x) == len(y):
             raise Exception('arrays x and y should be of the same size')
         d = diff(x, 1, backend=backend)
         sum_ar = (y[:-1] + y[1:])
         out = dot(d, sum_ar) * 0.5
     return out
 
-
+@annotate
 def where_elwise(i, condition, x, y,  ans):
     if condition[i]:
         ans[i] = x[i]
@@ -528,8 +528,7 @@ def where_elwise(i, condition, x, y,  ans):
 
 @memoize
 def where_kernel(backend, dtype):
-    where_annotated = annotate(where_elwise)
-    e = Elementwise(where_annotated, backend=backend)
+    e = Elementwise(where_elwise, backend=backend)
     return e
 
 
