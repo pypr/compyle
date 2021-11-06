@@ -7,7 +7,7 @@ from .cython_generator import (
 )
 from .ext_module import ExtModule
 from .extern import Extern
-from .low_level import Kernel, LocalMem, Cython
+from .low_level import Kernel, LocalMem, Cython, cast
 from .parallel import (
     Elementwise, Reduction, Scan, elementwise
 )
@@ -20,3 +20,4 @@ from .translator import (
     py2c
 )
 from .types import KnownType, annotate, declare
+from .utils import ArgumentParser
