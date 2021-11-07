@@ -1,3 +1,24 @@
+0.8.1
+~~~~~~
+
+* Release date: 7th November, 2021.
+* Fix issue with accidental file in sdist.
+
+
+0.8
+~~~~
+
+* Release date: 7th November, 2021.
+* Improve array module to support more numpy like functionality.
+* Improve profile output so it works in a distributed setting.
+* Add support for a configuration file in ~/.compyle/config.py
+* Added `atomic_dec` support.
+* Fix output capturing on jupyter notebooks.
+* Fix issues due to ast changes in Python 3.9.x.
+* Fix tests on 32bit architectures.
+* Fix several bugs and issues.
+
+
 0.7
 ~~~~
 

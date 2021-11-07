@@ -50,7 +50,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'Compyle'
-copyright = '2018-2020, PySPH Developers'
+copyright = '2018-2021, PySPH Developers'
 author = 'PySPH Developers'
 
 # The version info for the project you're documenting, acts as replacement for
