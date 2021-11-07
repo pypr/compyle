@@ -1,3 +1,10 @@
+0.8.1
+~~~~~~
+
+* Release date: 7th November, 2021.
+* Fix issue with accidental file in sdist.
+
+
 0.8
 ~~~~
 
