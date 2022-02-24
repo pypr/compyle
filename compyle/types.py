@@ -161,7 +161,7 @@ def _inject_types_in_module():
 _inject_types_in_module()
 
 NP_C_TYPE_MAP = {
-    np.dtype(np.bool): 'char',
+    np.dtype(bool): 'char',
     np.dtype(np.float32): 'float', np.dtype(np.float64): 'double',
     np.dtype(np.int8): 'char', np.dtype(np.uint8): 'unsigned char',
     np.dtype(np.int16): 'short', np.dtype(np.uint16): 'unsigned short',
@@ -170,7 +170,7 @@ NP_C_TYPE_MAP = {
 }
 
 C_NP_TYPE_MAP = {
-    'bool': np.bool,
+    'bool': bool,
     'char': np.int8,
     'double': np.float64,
     'float': np.float32,
