@@ -1754,7 +1754,7 @@ class GenericScanKernel(_GenericScanKernelBase):
 
         if self.store_segment_start_flags:
             segment_start_flags = gpuarray.empty(
-                n, dtype=np.bool,
+                n, dtype=bool,
                 allocator=allocator)
 
         # }}}
