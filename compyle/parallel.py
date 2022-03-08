@@ -8,7 +8,11 @@ once and have it run on different execution backends.
 
 from compyle import c_backend
 from functools import wraps
+from inspect import getmodule
+import operator
+from re import TEMPLATE
 from textwrap import wrap
+import json
 
 from mako.template import Template
 import numpy as np
@@ -24,6 +28,33 @@ from .ext_module import get_md5
 
 from . import array
 
+pyb11_bind_elwise = '''
+PYBIND11_MODULE(${name}, m) {
+    
+    m.def("${name}", [](${pyb11_args}){
+        return elwise_${name}(${pyb11_call});
+    });
+}
+'''
+
+pyb11_setup_header = '''
+<%
+cfg['compiler_args'] = ['-std=c++11', '-fopenmp']
+cfg['linker_args'] = ['-fopenmp']
+setup_pybind11(cfg)
+%>
+\n
+'''
+elementwise_pyb11_template = '''
+void ${name}(${arguments}){
+    %if openmp:
+        #pragma omp parallel for
+    %endif
+        for(size_t i = 0; i < SIZE; i++){
+            ${operations}; 
+        }
+}
+'''
 
 elementwise_cy_template = '''
 from cython.parallel import parallel, prange
@@ -604,7 +635,6 @@ class ElementwiseBase(object):
             event.synchronize()
         elif self.backend == 'c':
             self.c_func(*c_args)
-
 
 class Elementwise(object):
     def __init__(self, func, backend=None):
