@@ -8,7 +8,7 @@ from mako.template import Template
 from .config import get_config
 from .ast_utils import get_unknown_names_and_calls
 from .cython_generator import CythonGenerator, CodeGenerationError
-from .translator import OpenCLConverter, CUDAConverter
+from .translator import OpenCLConverter, CUDAConverter, CConverter
 from .ext_module import ExtModule
 from .extern import Extern, get_extern_code
 from .utils import getsourcelines
@@ -187,6 +187,14 @@ class Transpiler(object):
             #define max(x, y) fmax((double)(x), (double)(y))
 
             ''')
+        elif backend == 'c':
+            self._cgen = CConverter()
+            self.header = dedent('''
+                // c code for with PyBind11 binding
+                #include <pybind11/pybind11.h>
+                #include <pybind11/numpy.h>
+                namespace py = pybind11;
+            ''')
 
     def _handle_symbol(self, name, value):
         backend = self.backend
@@ -278,6 +286,11 @@ class Transpiler(object):
             code = self._cgen.parse(
                 obj, declarations=declarations.get(obj.__name__)
                 if declarations else None)
+        elif self.backend == 'c':
+            code = self._cgen.parse(
+                obj, declarations=declarations.get(obj.__name__)
+                if declarations else None)
+
 
         cb = CodeBlock(obj, code)
         self.blocks.append(cb)
