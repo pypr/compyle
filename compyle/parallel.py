@@ -37,14 +37,6 @@ PYBIND11_MODULE(${name}, m) {
 }
 '''
 
-pyb11_setup_header = '''
-<%
-cfg['compiler_args'] = ['-std=c++11', '-fopenmp']
-cfg['linker_args'] = ['-fopenmp']
-setup_pybind11(cfg)
-%>
-\n
-'''
 elementwise_pyb11_template = '''
 void ${name}(${arguments}){
     %if openmp:
@@ -635,6 +627,7 @@ class ElementwiseBase(object):
             event.synchronize()
         elif self.backend == 'c':
             self.c_func(*c_args)
+
 
 class Elementwise(object):
     def __init__(self, func, backend=None):
