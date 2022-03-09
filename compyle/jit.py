@@ -5,7 +5,7 @@ import inspect
 import ast
 import importlib
 import warnings
-import time
+import json
 from pytools import memoize
 from .config import get_config
 from .cython_generator import CythonGenerator
@@ -567,3 +567,8 @@ class ScanJIT(parallel.ScanBase):
             c_func(*[c_args_dict[k] for k in output_arg_keys])
             event.record()
             event.synchronize()
+        elif self.backend == 'c':
+            size = len(c_args_dict[output_arg_keys[0]])
+            c_args_dict['N'] = size
+            c_args_dict['neutral'] = json.loads(self.neutral)
+            c_func(*[c_args_dict[k] for k in output_arg_keys])

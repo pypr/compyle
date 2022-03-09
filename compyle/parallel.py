@@ -1276,8 +1276,6 @@ class ScanBase(object):
             openmp=openmp
         )
         self.all_source = self.source + src_scan
-        print(self.all_source)
-        # exit()
 
         extra_comp_args = ["-fopenmp", "-fPIC"] if openmp else []
         mod = Cmodule(self.name, self.all_source, extra_inc_dir=[pybind11.get_include(
