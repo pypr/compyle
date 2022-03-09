@@ -23,8 +23,8 @@ class CBackend(CythonGenerator):
         doc = ''
         template = Template(pybind11_wrap_fn)
         src = template.render(
-            name = name,
-            doc = doc
+            name=name,
+            doc=doc
         )
         return src
 
@@ -44,7 +44,8 @@ class CBackend(CythonGenerator):
             pyb11_type = self.ctype_to_pyb11(c_type)
             pyb11_args.append('{type} {arg}'.format(type=pyb11_type, arg=arg))
             if c_type.endswith('*'):
-                pyb11_call.append('({ctype}){arg}.request().ptr'.format(arg = arg, ctype = c_type))
+                pyb11_call.append(
+                    '({ctype}){arg}.request().ptr'.format(arg=arg, ctype=c_type))
             else:
                 pyb11_call.append('{arg}'.format(arg=arg))
 
@@ -58,7 +59,6 @@ class CBackend(CythonGenerator):
 
     def _get_self_type(self):
         return KnownType('GLOBAL_MEM %s*' % self._class_name)
-
 
 
 reduction_c_template = '''

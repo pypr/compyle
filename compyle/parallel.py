@@ -37,14 +37,6 @@ PYBIND11_MODULE(${name}, m) {
 }
 '''
 
-pyb11_setup_header = '''
-<%
-cfg['compiler_args'] = ['-std=c++11', '-fopenmp']
-cfg['linker_args'] = ['-fopenmp']
-setup_pybind11(cfg)
-%>
-\n
-'''
 elementwise_pyb11_template = '''
 void ${name}(${arguments}){
     %if openmp:
@@ -539,10 +531,6 @@ class ElementwiseBase(object):
             self.all_source = self.source
             return knl
         elif self.backend == 'c':
-            import cppimport
-            import os
-            import sys
-
             self.pyb11_backend = c_backend.CBackend()
             py_data, c_data = self.pyb11_backend.get_func_signature_pyb11(
                 self.func)
@@ -577,18 +565,13 @@ class ElementwiseBase(object):
             self.source = self.tp.get_code()
             if openmp:
                 self.source = '#include <omp.h>\n' + self.source
-            self.all_source = pyb11_setup_header + \
-                self.source + '\n' + src_elwise + '\n' + src_bind
+            self.all_source = self.source + '\n' + src_elwise + '\n' + src_bind
 
-            # print(self.all_source)
-            # exit()
-            cppfile = open(name + '.cpp', 'w')
-            cppfile.write(self.all_source)
-            cppfile.close()
-            sys.path.append(os.getcwd())
-            fn = cppimport.imp(name)
-            knl = getattr(fn, name)
-            return knl
+            extra_comp_args = ["-fopenmp", "-fPIC"] if openmp else []
+            mod = Cmodule(name, self.all_source, extra_inc_dir=[pybind11.get_include(
+            )], extra_compile_args=extra_comp_args, extra_link_args=extra_comp_args)
+            module = mod.load()
+            return getattr(module, name)
 
     def _correct_opencl_address_space(self, c_data):
         code = self.tp.blocks[-1].code.splitlines()
@@ -640,6 +623,7 @@ class ElementwiseBase(object):
             event.synchronize()
         elif self.backend == 'c':
             self.c_func(*c_args)
+
 
 class Elementwise(object):
     def __init__(self, func, backend=None):
@@ -1165,7 +1149,7 @@ class ScanBase(object):
         self.tp.compile()
         self.all_source = self.tp.source
         return getattr(self.tp.mod, 'py_' + self.name)
-    
+
     def _generate_c_code(self, declarations=None):
         self.pyb11_backend = c_backend.CBackend()
         self.tp.add(self.input_func, declarations=declarations)
@@ -1247,7 +1231,6 @@ class ScanBase(object):
         )], extra_compile_args=extra_comp_args, extra_link_args=extra_comp_args)
         module = mod.load()
         return getattr(module, self.name)
-
 
     def _wrap_ocl_function(self, func, func_type=None, declarations=None):
         if func is not None:
