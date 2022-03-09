@@ -368,6 +368,8 @@ class ElementwiseJIT(parallel.ElementwiseBase):
             c_func(*c_args, **kw)
             event.record()
             event.synchronize()
+        elif self.backend == 'c':
+            c_func(*c_args)
 
 
 class ReductionJIT(parallel.ReductionBase):
