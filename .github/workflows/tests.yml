@@ -3,6 +3,8 @@ name: Tests
 on:
   pull_request:
   schedule:
+    # Run Test at 0400 UTC on Saturday.
+    - cron: '0 4 * * 6'
     # Run test at 0400 UTC on day 1 of every month to create auto-generated
     # code afresh and cache it.
     - cron: '0 4 1 * *'  # Ref https://crontab.guru/#0_4_1_*_*
