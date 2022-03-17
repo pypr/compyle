@@ -16,6 +16,7 @@ import json
 
 from mako.template import Template
 import numpy as np
+import py
 import pybind11
 
 from .cimport import Cmodule
@@ -28,25 +29,6 @@ from .ext_module import get_md5
 
 from . import array
 
-pyb11_bind_elwise = '''
-PYBIND11_MODULE(${name}, m) {
-    
-    m.def("${name}", [](${pyb11_args}){
-        return elwise_${name}(${pyb11_call});
-    });
-}
-'''
-
-elementwise_pyb11_template = '''
-void ${name}(${arguments}){
-    %if openmp:
-        #pragma omp parallel for
-    %endif
-        for(size_t i = 0; i < SIZE; i++){
-            ${operations}; 
-        }
-}
-'''
 
 elementwise_cy_template = '''
 from cython.parallel import parallel, prange
