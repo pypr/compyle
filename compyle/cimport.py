@@ -1,35 +1,27 @@
 import os
-import hashlib
-import json
 from stat import S_ISREG
-import struct
 import io
 import importlib
-import logging
 import shutil
 import sys
+from filelock import FileLock, Timeout
 
 from os.path import exists, expanduser, isdir, join
 
-from distutils.sysconfig import get_config_vars, customize_compiler
-from distutils.util import get_platform
-
+import pybind11
 from distutils.extension import Extension
 from distutils.command import build_ext
 from distutils.core import setup
-from distutils.errors import CompileError, LinkError
-from distutils.ccompiler import new_compiler, get_default_compiler
-from webbrowser import get
 
 from .ext_module import get_platform_dir, get_md5, get_ext_extension
 from .capture_stream import CaptureMultipleStreams  # noqa: 402
 
 
 class Cmodule:
-    def __init__(self, name, src, root=None, verbose=False, extra_inc_dir=[], extra_link_args=[], extra_compile_args=[]):
-        self.name = name
+    def __init__(self, src, hash_fn, root=None, verbose=False, extra_inc_dir=[pybind11.get_include()], extra_link_args=[], extra_compile_args=[]):
         self.src = src
-        self.hash = get_md5(src)
+        self.hash = hash_fn
+        self.name = f'm_{self.hash}'
         self.verbose = verbose
         self.extra_inc_dir = extra_inc_dir
         self.extra_link_args = extra_link_args
@@ -37,6 +29,7 @@ class Cmodule:
 
         self._setup_root(root)
         self._setup_filenames()
+        self.lock = FileLock(self.lock_path, timeout=120)
 
     def _setup_root(self, root):
         if root is None:
@@ -59,21 +52,20 @@ class Cmodule:
                 f.write(self.src)
 
     def _setup_filenames(self):
-        base = 'm_' + self.hash
-        self.src_path = join(self.root, base + '.cpp')
+        self.src_path = join(self.root, self.name + '.cpp')
         self.ext_path = join(self.root, self.name + get_ext_extension())
+        self.lock_path = join(self.root, self.name + '.lock')
 
     def is_build_needed(self):
-        return True
+        return not exists(self.ext_path)
 
     def build(self):
-        if self.is_build_needed:
-            ext = Extension(name=self.name,
-                            sources=[self.src_path],
-                            language='c++',
-                            include_dirs=self.extra_inc_dir,
-                            extra_link_args=self.extra_link_args,
-                            extra_compile_args=self.extra_compile_args)
+        ext = Extension(name=self.name,
+                        sources=[self.src_path],
+                        language='c++',
+                        include_dirs=self.extra_inc_dir,
+                        extra_link_args=self.extra_link_args,
+                        extra_compile_args=self.extra_compile_args)
         args = [
             "build_ext",
             "--build-lib=" + self.build_dir,
@@ -99,14 +91,14 @@ class Cmodule:
             msg = "Compilation of code failed, please check "\
                 "error messages above."
             print(hline + "\n" + msg)
-            os.remove(self.src_path)
             sys.exit(1)
 
     def write_and_build(self):
         """Write source and build the extension module"""
-        if not (exists(self.src_path) and exists(self.ext_path)):
-            self._write_source()
-            self.build()
+        if self.is_build_needed():
+            with self.lock:
+                self._write_source()
+                self.build()
         else:
             self._message("Precompiled code from:", self.src_path)
 
