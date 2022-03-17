@@ -1,10 +1,9 @@
 import os
-from stat import S_ISREG
 import io
 import importlib
 import shutil
 import sys
-from filelock import FileLock, Timeout
+from filelock import FileLock
 
 from os.path import exists, expanduser, isdir, join
 
@@ -13,12 +12,14 @@ from distutils.extension import Extension
 from distutils.command import build_ext
 from distutils.core import setup
 
-from .ext_module import get_platform_dir, get_md5, get_ext_extension
+from .ext_module import get_platform_dir, get_ext_extension
 from .capture_stream import CaptureMultipleStreams  # noqa: 402
 
 
 class Cmodule:
-    def __init__(self, src, hash_fn, root=None, verbose=False, extra_inc_dir=[pybind11.get_include()], extra_link_args=[], extra_compile_args=[]):
+    def __init__(self, src, hash_fn, root=None, verbose=False,
+                 extra_inc_dir=[pybind11.get_include()],
+                 extra_link_args=[], extra_compile_args=[]):
         self.src = src
         self.hash = hash_fn
         self.name = f'm_{self.hash}'

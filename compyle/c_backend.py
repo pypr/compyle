@@ -1,8 +1,6 @@
-from textwrap import dedent
-from .translator import CConverter
-from mako.template import Template
-from .translator import ocl_detect_type, OpenCLConverter, KnownType
-from .cython_generator import CythonGenerator, get_func_definition, getsourcelines
+from .translator import ocl_detect_type, KnownType
+from .cython_generator import CythonGenerator, get_func_definition
+from .cython_generator import getsourcelines
 
 
 class CBackend(CythonGenerator):
@@ -27,7 +25,8 @@ class CBackend(CythonGenerator):
             pyb11_args.append('{type} {arg}'.format(type=pyb11_type, arg=arg))
             if c_type.endswith('*'):
                 pyb11_call.append(
-                    '({ctype}){arg}.request().ptr'.format(arg=arg, ctype=c_type))
+                    '({ctype}){arg}.request().ptr'
+                    .format(arg=arg, ctype=c_type))
             else:
                 pyb11_call.append('{arg}'.format(arg=arg))
 
@@ -46,7 +45,7 @@ class CBackend(CythonGenerator):
 elwise_c_pybind = '''
 
 PYBIND11_MODULE(${modname}, m) {
-    
+
     m.def("${modname}", [](${pyb11_args}){
         return ${name}(${pyb11_call});
     });
@@ -61,7 +60,7 @@ void ${name}(${arguments}){
         #pragma omp parallel for
     %endif
         for(size_t i = 0; i < SIZE; i++){
-            ${operations}; 
+            ${operations};
         }
 }
 
@@ -123,11 +122,12 @@ T reduce_all(long N, T initial_val${args_extra}){
             %endif
             int last_tile = ntiles - 1;
             int tile_size = (N / ntiles);
-            int last_tile_size = N - tile_size * last_tile;
-            int cur_tile_size = itile == ntiles - 1 ? last_tile_size : tile_size;
+            int last_tile_sz = N - tile_size * last_tile;
+            int cur_tile_size = itile == ntiles - 1 ? last_tile_sz : tile_size;
             int cur_start_idx = itile * tile_size;
 
-            stage1_res[itile] = reduce<T>(cur_start_idx, cur_tile_size, initial_val${call_extra});
+            stage1_res[itile] = reduce<T>(cur_start_idx, cur_tile_size,
+                                          initial_val${call_extra});
             #pragma omp barrier
 
             #pragma omp single
@@ -176,7 +176,7 @@ void excl_scan_wo_ip_exp( T* ary, T* out, int N, T initial_val){
     if (N > 0){
         T a, b, temp;
         temp = initial_val;
-        
+
         for (int i = 0; i < N; i++){
             a = temp;
             b = ary[i];
@@ -189,7 +189,9 @@ void excl_scan_wo_ip_exp( T* ary, T* out, int N, T initial_val){
 
 
 template <typename T>
-void incl_scan( T* ary, int offset, int cur_buf_size, int N, T initial_val, T last_item${args_extra}){
+void incl_scan( T* ary, int offset, int cur_buf_size, int N,
+                T initial_val, T last_item${args_extra})
+{
     if (N > 0){
         T a, b, carry, prev_item, item;
         carry = initial_val;
@@ -200,7 +202,7 @@ void incl_scan( T* ary, int offset, int cur_buf_size, int N, T initial_val, T la
             prev_item = carry;
             carry = combine<T>(a, b);
             item = carry;
-            
+
             ${scan_output_expr_call};
         }
     }
@@ -228,17 +230,20 @@ void scan( T* ary, long N, T initial_val${args_extra}){
             %endif
             int last_tile = ntiles - 1;
             int tile_size = (N / ntiles);
-            int last_tile_size = N - tile_size * last_tile;
-            int cur_tile_size = itile == ntiles - 1 ? last_tile_size : tile_size;
+            int last_tile_sz = N - tile_size * last_tile;
+            int cur_tile_size = itile == ntiles - 1 ? last_tile_sz : tile_size;
             int cur_start_idx = itile * tile_size;
 
-            stage1_res[itile] = reduce<T>(ary, cur_start_idx, cur_tile_size, initial_val${call_in_extra});
+            stage1_res[itile] = reduce<T>(ary, cur_start_idx, cur_tile_size,
+                                          initial_val${call_in_extra});
             #pragma omp barrier
 
             #pragma omp single
-            excl_scan_wo_ip_exp<T>(stage1_res, stage2_res, ntiles, initial_val);
+            excl_scan_wo_ip_exp<T>(stage1_res, stage2_res,
+                                   ntiles, initial_val);
 
-            incl_scan<T>(ary, cur_start_idx, cur_tile_size, N, stage2_res[itile], stage2_res[ntiles]${call_extra});
+            incl_scan<T>(ary, cur_start_idx, cur_tile_size, N,
+                         stage2_res[itile],stage2_res[ntiles]${call_extra});
         }
         delete[] stage1_res;
         delete[] stage2_res;
@@ -250,7 +255,8 @@ scan_c_pybind = '''
 
 PYBIND11_MODULE(${name}, m) {
     m.def("${name}", [](py::array_t<${type}> x, long n${pyb_args}){
-        return scan((${type}*) x.request().ptr, n, (${type})${neutral}${pyb_call});
+        return scan((${type}*) x.request().ptr, n,
+                    (${type})${neutral}${pyb_call});
     });
 }
 '''
