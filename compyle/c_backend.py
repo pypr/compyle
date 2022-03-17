@@ -1,32 +1,14 @@
 from textwrap import dedent
-import pybind11
 from .translator import CConverter
 from mako.template import Template
 from .translator import ocl_detect_type, OpenCLConverter, KnownType
 from .cython_generator import CythonGenerator, get_func_definition, getsourcelines
-
-pybind11_wrap_fn = '''
-PYBIND11_MODULE(${name}, m) {
-    m.def("${name}", &${name}, "${doc}");
-}
-'''
 
 
 class CBackend(CythonGenerator):
     def __init__(self, detect_type=ocl_detect_type, known_types=None):
         super(CBackend, self).__init__()
         # self.function_address_space = 'WITHIN_KERNEL '
-
-    def add_pybind11_func(self, node):
-        args = self._get_function_args(node)
-        name = node.body[0].name
-        doc = ''
-        template = Template(pybind11_wrap_fn)
-        src = template.render(
-            name=name,
-            doc=doc
-        )
-        return src
 
     def get_func_signature_pyb11(self, func):
         sourcelines = getsourcelines(func)[0]
@@ -60,6 +42,30 @@ class CBackend(CythonGenerator):
     def _get_self_type(self):
         return KnownType('GLOBAL_MEM %s*' % self._class_name)
 
+
+elwise_c_pybind = '''
+
+PYBIND11_MODULE(${modname}, m) {
+    
+    m.def("${modname}", [](${pyb11_args}){
+        return ${name}(${pyb11_call});
+    });
+}
+
+'''
+
+elwise_c_template = '''
+
+void ${name}(${arguments}){
+    %if openmp:
+        #pragma omp parallel for
+    %endif
+        for(size_t i = 0; i < SIZE; i++){
+            ${operations}; 
+        }
+}
+
+'''
 
 reduction_c_template = '''
 template<typename T>
@@ -131,10 +137,13 @@ T reduce_all(long N, T initial_val${args_extra}){
     }
     return ans;
 }
+'''
+
+reduction_c_pybind = '''
 
 PYBIND11_MODULE(${name}, m) {
-    m.def("${name}", [](long n, ${type} initial${pyb_args}){
-        return reduce_all(n, initial${pyb_call});
+    m.def("${name}", [](long n${pyb_args}){
+        return reduce_all(n, (${type})${neutral}${pyb_call});
     });
 }
 
@@ -168,19 +177,19 @@ void excl_scan_wo_ip_exp( T* ary, T* out, int N, T initial_val){
         T a, b, temp;
         temp = initial_val;
         
-        for (int i = 0; i < N - 1; i++){
+        for (int i = 0; i < N; i++){
             a = temp;
             b = ary[i];
             out[i] = temp;
             temp = combine<T>(a, b);
         }
-        out[N - 1] = temp;
+        out[N] = temp;
     }
 }
 
 
 template <typename T>
-void incl_scan( T* ary, int offset, int cur_buf_size, int N, T initial_val${args_extra}){
+void incl_scan( T* ary, int offset, int cur_buf_size, int N, T initial_val, T last_item${args_extra}){
     if (N > 0){
         T a, b, carry, prev_item, item;
         carry = initial_val;
@@ -207,7 +216,7 @@ void scan( T* ary, long N, T initial_val${args_extra}){
         int ntiles = 1;
         %endif
         T* stage1_res = new T[ntiles];
-        T* stage2_res = new T[ntiles];
+        T* stage2_res = new T[ntiles + 1];
 
         #pragma omp parallel
         {
@@ -229,19 +238,19 @@ void scan( T* ary, long N, T initial_val${args_extra}){
             #pragma omp single
             excl_scan_wo_ip_exp<T>(stage1_res, stage2_res, ntiles, initial_val);
 
-            incl_scan<T>(ary, cur_start_idx, cur_tile_size, N, stage2_res[itile]${call_extra});
+            incl_scan<T>(ary, cur_start_idx, cur_tile_size, N, stage2_res[itile], stage2_res[ntiles]${call_extra});
         }
         delete[] stage1_res;
         delete[] stage2_res;
         py::print(ary);
     }
 }
-
-
+'''
+scan_c_pybind = '''
 
 PYBIND11_MODULE(${name}, m) {
-    m.def("${name}", [](py::array_t<${type}> x, long n, ${type} initial${pyb_args}){
-        return scan((${type}*) x.request().ptr, n, initial${pyb_call});
+    m.def("${name}", [](py::array_t<${type}> x, long n${pyb_args}){
+        return scan((${type}*) x.request().ptr, n, (${type})${neutral}${pyb_call});
     });
 }
 '''

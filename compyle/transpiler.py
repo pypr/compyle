@@ -194,6 +194,7 @@ class Transpiler(object):
                 #include <pybind11/pybind11.h>
                 #include <pybind11/numpy.h>
                 namespace py = pybind11;
+                using namespace std;                
             ''')
 
     def _handle_symbol(self, name, value):
@@ -224,6 +225,8 @@ class Transpiler(object):
             return '#define {name} {value}'.format(
                 name=name, value=value
             )
+        elif self.backend == 'c':
+            return f"{ctype} {name} = {value};"
 
     def _get_comment(self):
         return '#' if self.backend == 'cython' else '//'
@@ -290,7 +293,6 @@ class Transpiler(object):
             code = self._cgen.parse(
                 obj, declarations=declarations.get(obj.__name__)
                 if declarations else None)
-
 
         cb = CodeBlock(obj, code)
         self.blocks.append(cb)

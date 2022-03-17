@@ -1023,7 +1023,7 @@ class Array(object):
             return cu_bufint(self._data, nbytes, int(offset))
 
     def get(self):
-        if self.backend == 'cython':
+        if self.backend == 'cython' or self.backend == 'c':
             return self.dev
         elif self.backend == 'opencl' or self.backend == 'cuda':
             return self.dev.get()

@@ -450,6 +450,10 @@ class ReductionJIT(parallel.ReductionBase):
             event.record()
             event.synchronize()
             return result.get()
+        elif self.backend == 'c':
+            size = len(c_args[0])
+            c_args.insert(0, size)
+            return c_func(*c_args)
 
 
 class ScanJIT(parallel.ScanBase):
@@ -572,5 +576,4 @@ class ScanJIT(parallel.ScanBase):
         elif self.backend == 'c':
             size = len(c_args_dict[output_arg_keys[0]])
             c_args_dict['N'] = size
-            c_args_dict['neutral'] = json.loads(self.neutral)
             c_func(*[c_args_dict[k] for k in output_arg_keys])

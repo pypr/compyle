@@ -16,6 +16,7 @@ import json
 
 from mako.template import Template
 import numpy as np
+import py
 import pybind11
 from pyopencl.array import arange
 
@@ -24,29 +25,11 @@ from .config import get_config
 from .profile import profile
 from .cython_generator import get_parallel_range, CythonGenerator
 from .transpiler import Transpiler, convert_to_float_if_needed
-from .types import dtype_to_ctype
+from .types import TYPES, annotate, dtype_to_ctype
+from .ext_module import get_md5
 
 from . import array
 
-pyb11_bind_elwise = '''
-PYBIND11_MODULE(${name}, m) {
-    
-    m.def("${name}", [](${pyb11_args}){
-        return elwise_${name}(${pyb11_call});
-    });
-}
-'''
-
-elementwise_pyb11_template = '''
-void ${name}(${arguments}){
-    %if openmp:
-        #pragma omp parallel for
-    %endif
-        for(size_t i = 0; i < SIZE; i++){
-            ${operations}; 
-        }
-}
-'''
 
 elementwise_cy_template = '''
 from cython.parallel import parallel, prange
@@ -547,7 +530,7 @@ class ElementwiseBase(object):
 
             openmp = self._config.use_openmp
 
-            templete_elwise = Template(elementwise_pyb11_template)
+            templete_elwise = Template(c_backend.elwise_c_template)
             src_elwise = templete_elwise.render(
                 name=self.name,
                 arguments=arguments,
@@ -555,23 +538,28 @@ class ElementwiseBase(object):
                 operations=expr
             )
 
-            template = Template(pyb11_bind_elwise)
+            self.source = self.tp.get_code()
+            if openmp:
+                self.source = '#include <omp.h>\n' + self.source
+            self.all_source = self.source + '\n' + src_elwise
+            hash_fn = get_md5(self.all_source)
+            modname = f'm_{hash_fn}'
+
+            template = Template(c_backend.elwise_c_pybind)
             src_bind = template.render(
-                name=name,
+                name=self.name,
+                modname=modname,
                 pyb11_args=pyb11_args,
                 pyb11_call=pyb11_call
             )
 
-            self.source = self.tp.get_code()
-            if openmp:
-                self.source = '#include <omp.h>\n' + self.source
-            self.all_source = self.source + '\n' + src_elwise + '\n' + src_bind
+            self.all_source += src_bind
 
             extra_comp_args = ["-fopenmp", "-fPIC"] if openmp else []
-            mod = Cmodule(name, self.all_source, extra_inc_dir=[pybind11.get_include(
+            mod = Cmodule(self.all_source, hash_fn, extra_inc_dir=[pybind11.get_include(
             )], extra_compile_args=extra_comp_args, extra_link_args=extra_comp_args)
             module = mod.load()
-            return getattr(module, name)
+            return getattr(module, modname)
 
     def _correct_opencl_address_space(self, c_data):
         code = self.tp.blocks[-1].code.splitlines()
@@ -736,6 +724,7 @@ class ReductionBase(object):
         elif self.backend == 'c':
             self.pyb11_backend = c_backend.CBackend()
             if self.func is not None:
+                self.func.__annotations__['return'] = TYPES[self.type]
                 self.tp.add(self.func, declarations=declarations)
                 pyb_data, c_data = self.pyb11_backend.get_func_signature_pyb11(
                     self.func)
@@ -775,17 +764,27 @@ class ReductionBase(object):
                 red_expr=self.reduce_expr,
                 name=self.name,
                 type=self.type,
-                pyb_args=pyb_args_extra_str,
-                pyb_call=pyb_call_extra_str,
                 openmp=openmp
             )
             self.all_source = self.source + src_red
+            hash_fn = get_md5(self.all_source)
+            modname = f'm_{hash_fn}'
+
+            template_pybind = Template(c_backend.reduction_c_pybind)
+            src_pybind = template_pybind.render(
+                name=modname,
+                type=self.type,
+                pyb_args=pyb_args_extra_str,
+                pyb_call=pyb_call_extra_str,
+                neutral=self.neutral,
+            )
+            self.all_source += src_pybind
 
             extra_comp_args = ["-fopenmp", "-fPIC"] if openmp else []
-            mod = Cmodule(self.name, self.all_source, extra_inc_dir=[pybind11.get_include(
+            mod = Cmodule(self.all_source, hash_fn, extra_inc_dir=[pybind11.get_include(
             )], extra_compile_args=extra_comp_args, extra_link_args=extra_comp_args)
             module = mod.load()
-            return getattr(module, self.name)
+            return getattr(module, modname)
 
         elif self.backend == 'opencl':
             if self.func is not None:
@@ -942,10 +941,8 @@ class ReductionBase(object):
             return result.get()
         elif self.backend == 'c':
             size = len(c_args[0])
-            c_args.insert(0, json.loads(self.neutral))
             c_args.insert(0, size)
             return self.c_func(*c_args)
-            pass
 
 
 class Reduction(object):
@@ -1187,19 +1184,25 @@ class ScanBase(object):
 
     def _generate_c_code(self, declarations=None):
         self.pyb11_backend = c_backend.CBackend()
+        if not self.input_func:
+            @annotate(i='int', ary=f'{self.type}p', return_=f'{self.type}')
+            def input_expr(i, ary):
+                return ary[i]
+            self.input_func = input_expr
+
         self.tp.add(self.input_func, declarations=declarations)
+        pyb_data_in, c_data_in = self.pyb11_backend.get_func_signature_pyb11(
+            self.input_func)
         self.tp.add(self.output_func, declarations=declarations)
         self.source = self.tp.get_code()
         openmp = self._config.use_openmp
         if openmp:
             self.source = '#include <omp.h>\n' + self.source
-        pyb_data_in, c_data_in = self.pyb11_backend.get_func_signature_pyb11(
-            self.input_func)
         c_call_in = c_data_in[1]
         pyb_data_out, c_data_out = self.pyb11_backend.get_func_signature_pyb11(
             self.output_func)
         c_call_out = c_data_out[1]
-        c_call_default = ['ary', 'N', 'neutral']
+        c_call_default = ['ary', 'N']
         c_internal_var = ['item', 'prev_item', 'last_item']
         predefined_vars = c_call_default + c_internal_var
 
@@ -1260,12 +1263,25 @@ class ScanBase(object):
             openmp=openmp
         )
         self.all_source = self.source + src_scan
+        hash_fn = get_md5(self.all_source)
+        modname = f'm_{hash_fn}'
+
+        pybind_template = Template(c_backend.scan_c_pybind)
+        src_pybind = pybind_template.render(
+            name=modname,
+            type=self.type,
+            pyb_args=pyb_args_extra_str,
+            pyb_call=pyb_call_extra_str,
+            neutral=self.neutral
+        )
+
+        self.all_source += src_pybind
 
         extra_comp_args = ["-fopenmp", "-fPIC"] if openmp else []
-        mod = Cmodule(self.name, self.all_source, extra_inc_dir=[pybind11.get_include(
+        mod = Cmodule(self.all_source, hash_fn, extra_inc_dir=[pybind11.get_include(
         )], extra_compile_args=extra_comp_args, extra_link_args=extra_comp_args)
         module = mod.load()
-        return getattr(module, self.name)
+        return getattr(module, modname)
 
     def _wrap_ocl_function(self, func, func_type=None, declarations=None):
         if func is not None:
@@ -1452,7 +1468,6 @@ class ScanBase(object):
         elif self.backend == 'c':
             size = len(c_args_dict[output_arg_keys[0]])
             c_args_dict['N'] = size
-            c_args_dict['neutral'] = json.loads(self.neutral)
             self.c_func(*[c_args_dict[k] for k in output_arg_keys])
 
 
