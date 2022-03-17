@@ -31,7 +31,8 @@ pybind = """
 PYBIND11_MODULE(${name}, m) {
 
     m.def("${name}", [](py::array_t<int> x, py::array_t<int> y){
-        return f(x.request().size, (int*)x.request().ptr, (int*)y.request().ptr);
+        return f(x.request().size, (int*)x.request().ptr,
+        (int*)y.request().ptr);
     });
 }
 """

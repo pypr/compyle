@@ -11,6 +11,7 @@ import pybind11
 from distutils.extension import Extension
 from distutils.command import build_ext
 from distutils.core import setup
+from distutils.errors import CompileError, LinkError
 
 from .ext_module import get_platform_dir, get_ext_extension
 from .capture_stream import CaptureMultipleStreams  # noqa: 402
@@ -83,7 +84,7 @@ class Cmodule:
                 shutil.move(join(self.build_dir, self.name +
                             get_ext_extension()), self.ext_path)
 
-        except:
+        except(CompileError, LinkError):
             hline = "*"*80
             print(hline + "\nERROR")
             s_out = stream.get_output()
