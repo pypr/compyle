@@ -3,3 +3,5 @@ pytools
 cython
 numpy
 pytest
+pybind11
+filelock
