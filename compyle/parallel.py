@@ -556,8 +556,10 @@ class ElementwiseBase(object):
             self.all_source += src_bind
 
             extra_comp_args = ["-fopenmp", "-fPIC"] if openmp else []
-            mod = Cmodule(self.all_source, hash_fn, extra_inc_dir=[pybind11.get_include(
-            )], extra_compile_args=extra_comp_args, extra_link_args=extra_comp_args)
+            mod = Cmodule(self.all_source, hash_fn,
+                          extra_inc_dir=[pybind11.get_include()],
+                          extra_compile_args=extra_comp_args,
+                          extra_link_args=extra_comp_args)
             module = mod.load()
             return getattr(module, modname)
 
@@ -735,7 +737,8 @@ class ReductionBase(object):
             else:
                 c_args_extra_str = f", {self.type + '*'} in"
                 c_call_extra_str = ", in"
-                pyb_args_extra_str = f", {self.pyb11_backend.ctype_to_pyb11(self.type + '*')} in"
+                arg_typ = self.pyb11_backend.ctype_to_pyb11(self.type + '*')
+                pyb_args_extra_str = f", {arg_typ} in"
                 pyb_call_extra_str = f", ({self.type}*) in.request().ptr"
                 map_expr = "in[i]"
             self.source = self.tp.get_code()
@@ -768,8 +771,10 @@ class ReductionBase(object):
             self.all_source += src_pybind
 
             extra_comp_args = ["-fopenmp", "-fPIC"] if openmp else []
-            mod = Cmodule(self.all_source, hash_fn, extra_inc_dir=[pybind11.get_include(
-            )], extra_compile_args=extra_comp_args, extra_link_args=extra_comp_args)
+            mod = Cmodule(self.all_source, hash_fn,
+                          extra_inc_dir=[pybind11.get_include()],
+                          extra_compile_args=extra_comp_args,
+                          extra_link_args=extra_comp_args)
             module = mod.load()
             return getattr(module, modname)
 
@@ -1188,8 +1193,10 @@ class ScanBase(object):
                 pyb_args_extra[0].append(pyb_data_out[0][i + 1])
                 pyb_args_extra[1].append(pyb_data_out[1][i + 1])
 
-        c_args_in_extra_str = f", {','.join(c_args_in_extra[0])}" if c_args_in_extra[1] else ""
-        c_call_in_extra_str = f", {','.join(c_args_in_extra[1])}" if c_args_in_extra[1] else ""
+        c0 = c_args_in_extra[0]
+        c1 = c_args_in_extra[1]
+        c_args_in_extra_str = f", {','.join(c0)}" if c1 else ""
+        c_call_in_extra_str = f", {','.join(c1)}" if c1 else ""
 
         c_args_extra = c_args_out_extra.copy()
         for i, var in enumerate(c_args_in_extra[1]):
@@ -1204,13 +1211,19 @@ class ScanBase(object):
         self.output_func.arg_keys[self._get_backend_key(
         )] = c_call_default + c_args_extra[1]
 
-        c_args_extra_str = f", {', '.join(c_args_extra[0])}" if c_args_extra[1] else ""
-        c_call_extra_str = f", {', '.join(c_args_extra[1])}" if c_args_extra[1] else ""
-        pyb_args_extra_str = f", {', '.join(pyb_args_extra[0])}" if pyb_args_extra[1] else ""
-        pyb_call_extra_str = f", {', '.join(pyb_args_extra[1])}" if pyb_args_extra[1] else ""
+        c0 = c_args_extra[0]
+        c1 = c_args_extra[1]
+        p0 = pyb_args_extra[0]
+        p1 = pyb_args_extra[1]
+        c_args_extra_str = f", {', '.join(c0)}" if c1 else ""
+        c_call_extra_str = f", {', '.join(c1)}" if c1 else ""
+        pyb_args_extra_str = f", {', '.join(p0)}" if p1 else ""
+        pyb_call_extra_str = f", {', '.join(p1)}" if p1 else ""
 
-        c_call_in_str = f"{self.input_func.__name__}({', '.join(c_call_in)})"
-        c_call_out_str = f"{self.output_func.__name__}({', '.join(c_call_out)})"
+        ip_fname = self.input_func.__name__
+        op_fname = self.output_func.__name__
+        c_call_in_str = f"{ip_fname}({', '.join(c_call_in)})"
+        c_call_out_str = f"{op_fname}({', '.join(c_call_out)})"
 
         template_scan = Template(c_backend.scan_c_template)
         src_scan = template_scan.render(
@@ -1243,8 +1256,10 @@ class ScanBase(object):
         self.all_source += src_pybind
 
         extra_comp_args = ["-fopenmp", "-fPIC"] if openmp else []
-        mod = Cmodule(self.all_source, hash_fn, extra_inc_dir=[pybind11.get_include(
-        )], extra_compile_args=extra_comp_args, extra_link_args=extra_comp_args)
+        mod = Cmodule(self.all_source, hash_fn,
+                      extra_inc_dir=[pybind11.get_include()],
+                      extra_compile_args=extra_comp_args,
+                      extra_link_args=extra_comp_args)
         module = mod.load()
         return getattr(module, modname)
 

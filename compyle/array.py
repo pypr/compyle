@@ -518,6 +518,7 @@ def trapz(y, x=None, dx=1.0, backend=None):
         out = dot(d, sum_ar) * 0.5
     return out
 
+
 @annotate
 def where_elwise(i, condition, x, y,  ans):
     if condition[i]:
