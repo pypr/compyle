@@ -194,8 +194,8 @@ class Transpiler(object):
                 #include <pybind11/pybind11.h>
                 #include <pybind11/numpy.h>
                 namespace py = pybind11;
-                using namespace std;                
-            ''')
+                using namespace std;
+                ''')
 
     def _handle_symbol(self, name, value):
         backend = self.backend

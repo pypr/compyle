@@ -280,7 +280,9 @@ class ParallelUtilsBase(object):
             self._test_unique_scan(backend='cython')
 
 
-class TestParallelUtils(ParallelUtilsBase, ParallelUtilsBaseC, unittest.TestCase):
+class TestParallelUtils(ParallelUtilsBase,
+                        ParallelUtilsBaseC,
+                        unittest.TestCase):
     def setUp(self):
         cfg = get_config()
         self._use_double = cfg.use_double
