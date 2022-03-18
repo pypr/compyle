@@ -8,17 +8,11 @@ once and have it run on different execution backends.
 
 from compyle import c_backend
 from functools import wraps
-from inspect import getmodule
-import operator
-from re import TEMPLATE
 from textwrap import wrap
-import json
 
 from mako.template import Template
 import numpy as np
-import py
 import pybind11
-from pyopencl.array import arange
 
 from .cimport import Cmodule
 from .config import get_config
