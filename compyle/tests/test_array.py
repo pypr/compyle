@@ -7,6 +7,14 @@ import compyle.array as array
 from compyle import config
 
 
+@pytest.fixture
+def reset_use_double():
+    cfg = get_config()
+    orig = cfg.use_double
+    yield
+    get_config().use_double = orig
+
+
 check_all_backends = pytest.mark.parametrize('backend',
                                              ['cython', 'opencl', 'cuda'])
 
@@ -401,7 +409,7 @@ def test_linspace(backend):
 
 @check_all_backends
 @check_all_dtypes
-def test_diff(backend, dtype):
+def test_diff(backend, dtype, reset_use_double):
     check_import(backend)
     if dtype == np.float64:
         get_config().use_double = True
@@ -448,7 +456,7 @@ check_comparison_methods = pytest.mark.parametrize(
 @check_all_backends
 @check_all_dtypes
 @check_comparison_methods
-def test_comparison(backend, dtype, method):
+def test_comparison(backend, dtype, method, reset_use_double):
     check_import(backend)
     if dtype == np.float64:
         get_config().use_double = True
@@ -539,7 +547,7 @@ def test_sum(dtype, backend):
 
 @check_all_dtypes
 @check_all_backends
-def test_take_bool(dtype, backend):
+def test_take_bool(dtype, backend, reset_use_double):
     check_import(backend)
     if dtype == np.float64:
         get_config().use_double = True
