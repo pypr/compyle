@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 from pytest import importorskip
 
-from ..config import use_config, get_config
+from ..config import use_config
 from ..array import wrap
 from ..types import annotate
 from ..parallel import elementwise, Reduction, Scan
@@ -131,3 +131,30 @@ class TestChangeBackend(unittest.TestCase):
 
         # Then
         np.testing.assert_array_almost_equal(a.data, expect)
+
+    def test_wrap_is_identity_on_arrays_with_same_backend(self):
+        # Given
+        x = np.linspace(0, 1, 100)
+
+        # When
+        xw = wrap(x)
+
+        res = wrap(xw)
+
+        # Then
+        self.assertIs(res, xw)
+
+    def test_wrap_can_wrap_array_to_different_backend(self):
+        importorskip("pyopencl")
+        # Given
+        x = np.linspace(0, 1, 100)
+
+        # When
+        xc = wrap(x)
+        with use_config(use_opencl=True):
+            xocl = wrap(xc)
+
+        # Then
+        self.assertEqual(xc.backend, 'cython')
+        self.assertEqual(xocl.backend, 'opencl')
+        np.testing.assert_array_almost_equal(xocl.data, xc.data)
