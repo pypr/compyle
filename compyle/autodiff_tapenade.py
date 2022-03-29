@@ -284,6 +284,13 @@ class ElementwiseGrad(GradBase):
         elif self.backend == 'cuda':
             return self._cuda_gen()
 
+    def correct_initialization(self):
+        for var in self.gradof:
+            grad_var = var + VAR_SUFFIX_F
+            prev = f"*{grad_var} = 0"
+            after = f"{grad_var}[i] = 0"
+            self.grad_all_source = self.grad_all_source.replace(prev, after)
+
     def _c_gen(self):
         pyb_args, pyb_c_args, py_args, c_args = get_diff_signature(
             self.func, self.active)
@@ -332,7 +339,7 @@ class ElementwiseGrad(GradBase):
         cluda_preamble = Template(text=CLUDA_PREAMBLE).render(
             double_support=True)
         self.grad_all_source = cluda_preamble + preamble
-        print(self.grad_all_source)
+        self.correct_initialization()
         knl = ElementwiseKernel(name=self.name,
                                 arguments=arguments,
                                 operation=expr,
@@ -377,7 +384,6 @@ class ReverseGrad(GradBase):
         extra_inc_dir = [pybind11.get_include(), tpnd_obj_dir]
         extra_link_args = [os.path.join(tpnd_obj_dir, 'adBuffer.o'),
                            os.path.join(tpnd_obj_dir, 'adStack.o')]
-
         mod = Cmodule(self.grad_all_source, hash_fn,
                       extra_inc_dir=extra_inc_dir,
                       extra_link_args=extra_link_args)
@@ -389,8 +395,3 @@ class ReverseGrad(GradBase):
         cond1 = not os.path.exists(os.path.join(tpnd_obj_dir, 'adBuffer.o'))
         cond2 = not os.path.exists(os.path.join(tpnd_obj_dir, 'adStack.o'))
         return cond1 or cond2
-
-
-class Grad(ReverseGrad):
-    def __init__(self, func, wrt, gradof, backend='tapenade'):
-        super().__init__(func, wrt, gradof, backend=backend)
