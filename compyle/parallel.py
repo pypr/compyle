@@ -556,6 +556,13 @@ class ElementwiseBase(object):
 
 class Elementwise(object):
     def __init__(self, func, backend=None):
+        self._func = func
+        self._backend = backend
+        self.elementwise = None
+
+    def _setup(self):
+        func = self._func
+        backend = array.get_backend(self._backend)
         if getattr(func, '__annotations__',
                    None) and not hasattr(func, 'is_jit'):
             self.elementwise = ElementwiseBase(func, backend=backend)
@@ -570,7 +577,13 @@ class Elementwise(object):
         return sorted(dir(self.elementwise) + ['elementwise'])
 
     def __call__(self, *args, **kwargs):
+        if self.elementwise is None:
+            self._setup()
         self.elementwise(*args, **kwargs)
+
+    def set_backend(self, backend=None):
+        self._backend = backend
+        self.elementwise = None
 
 
 def elementwise(func=None, backend=None):
@@ -585,7 +598,7 @@ def elementwise(func=None, backend=None):
 
 class ReductionBase(object):
     def __init__(self, reduce_expr, map_func=None, dtype_out=np.float64,
-                 neutral='0', backend='cython'):
+                 neutral='0', backend=None):
         backend = array.get_backend(backend)
         self.tp = Transpiler(backend=backend)
         self.backend = backend
@@ -806,7 +819,23 @@ class ReductionBase(object):
 
 class Reduction(object):
     def __init__(self, reduce_expr, map_func=None, dtype_out=np.float64,
-                 neutral='0', backend='cython'):
+                 neutral='0', backend=None):
+        self._reduce_expr = reduce_expr
+        self._map_func = map_func
+        self._dtype_out = dtype_out
+        self._neutral = neutral
+        self._backend = backend
+        self.reduction = None
+
+    def _setup(self):
+        map_func = self._map_func
+        reduce_expr = self._reduce_expr
+        dtype_out, neutral = self._dtype_out, self._neutral
+        backend = array.get_backend(self._backend)
+        cfg = get_config()
+        if (backend != 'cython' and dtype_out == np.float64 and
+           not cfg.use_double):
+            dtype_out = np.float32
         if map_func is None or getattr(map_func, '__annotations__', None) and \
                 not hasattr(map_func, 'is_jit'):
             self.reduction = ReductionBase(reduce_expr, map_func=map_func,
@@ -827,7 +856,13 @@ class Reduction(object):
         return getattr(self.reduction, name)
 
     def __call__(self, *args, **kwargs):
+        if self.reduction is None:
+            self._setup()
         return self.reduction(*args, **kwargs)
+
+    def set_backend(self, backend=None):
+        self._backend = backend
+        self.reduction = None
 
 
 class ScanBase(object):
@@ -1205,6 +1240,21 @@ class Scan(object):
     def __init__(self, input=None, output=None, scan_expr="a+b",
                  is_segment=None, dtype=np.float64, neutral='0',
                  complex_map=False, backend=None):
+        self._input = input
+        self._output = output
+        self._scan_expr = scan_expr
+        self._is_segment = is_segment
+        self._dtype = dtype
+        self._neutral = neutral
+        self._complex_map = complex_map
+        self._backend = backend
+        self.scan = None
+
+    def _setup(self):
+        input, output, scan_expr = self._input, self._output, self._scan_expr
+        is_segment, dtype = self._is_segment, self._dtype
+        neutral, complex_map = self._neutral, self._complex_map
+        backend = array.get_backend(self._backend)
         # FIXME: Revisit these conditions
         input_base = input is None or \
             getattr(input, '__annotations__', None) and \
@@ -1239,4 +1289,10 @@ class Scan(object):
         return getattr(self.scan, name)
 
     def __call__(self, **kwargs):
+        if self.scan is None:
+            self._setup()
         self.scan(**kwargs)
+
+    def set_backend(self, backend=None):
+        self._backend = backend
+        self.scan = None

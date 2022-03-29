@@ -215,6 +215,11 @@ def get_minmax_kernel(ctx, dtype, inf, mmc_dtype, prop_names,
 
 
 def wrap_array(arr, backend):
+    if isinstance(arr, Array):
+        if arr.backend == backend:
+            return arr
+        else:
+            arr = arr.data
     wrapped_array = Array(arr.dtype, allocate=False, backend=backend)
     if isinstance(arr, np.ndarray):
         wrapped_array.data = arr

@@ -373,7 +373,7 @@ class ElementwiseJIT(parallel.ElementwiseBase):
 
 class ReductionJIT(parallel.ReductionBase):
     def __init__(self, reduce_expr, map_func=None, dtype_out=np.float64,
-                 neutral='0', backend='cython'):
+                 neutral='0', backend=None):
         backend = array.get_backend(backend)
         self.tp = Transpiler(backend=backend)
         self.backend = backend
@@ -454,7 +454,7 @@ class ReductionJIT(parallel.ReductionBase):
 class ScanJIT(parallel.ScanBase):
     def __init__(self, input=None, output=None, scan_expr="a+b",
                  is_segment=None, dtype=np.float64, neutral='0',
-                 complex_map=False, backend='opencl'):
+                 complex_map=False, backend=None):
         backend = array.get_backend(backend)
         self.tp = Transpiler(backend=backend, incl_cluda=False)
         self.backend = backend
