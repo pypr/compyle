@@ -111,8 +111,9 @@ T reduce_all(long N, T initial_val${args_extra}){
         int ntiles = 1;
         %endif
         T* stage1_res = new T[ntiles];
-
-        #pragma omp parallel
+        %if openmp:
+        #pragma omp parallel for
+        %endif
         {
             // Step 1 - reducing each tile
             %if openmp:
@@ -128,9 +129,11 @@ T reduce_all(long N, T initial_val${args_extra}){
 
             stage1_res[itile] = reduce<T>(cur_start_idx, cur_tile_size,
                                           initial_val${call_extra});
+            %if openmp:
             #pragma omp barrier
 
             #pragma omp single
+            %endif
             ans = reduce_one_ar<T>(0, ntiles, initial_val, stage1_res);
         }
         delete[] stage1_res;
@@ -237,9 +240,11 @@ void scan( T* ary, long N, T initial_val${args_extra}){
 
             stage1_res[itile] = reduce<T>(ary, cur_start_idx, cur_tile_size,
                                           initial_val${call_in_extra});
+            %if openmp:
             #pragma omp barrier
 
             #pragma omp single
+            %endif
             excl_scan_wo_ip_exp<T>(stage1_res, stage2_res,
                                    ntiles, initial_val);
 
