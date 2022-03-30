@@ -549,11 +549,8 @@ class ElementwiseBase(object):
 
             self.all_source += src_bind
 
-            extra_comp_args = ["-fopenmp", "-fPIC"] if openmp else []
-            mod = Cmodule(self.all_source, hash_fn,
-                          extra_inc_dir=[pybind11.get_include()],
-                          extra_compile_args=extra_comp_args,
-                          extra_link_args=extra_comp_args)
+            mod = Cmodule(self.all_source, hash_fn, openmp=openmp,
+                          extra_inc_dir=[pybind11.get_include()])
             module = mod.load()
             return getattr(module, modname)
 
@@ -764,11 +761,8 @@ class ReductionBase(object):
             )
             self.all_source += src_pybind
 
-            extra_comp_args = ["-fopenmp", "-fPIC"] if openmp else []
-            mod = Cmodule(self.all_source, hash_fn,
-                          extra_inc_dir=[pybind11.get_include()],
-                          extra_compile_args=extra_comp_args,
-                          extra_link_args=extra_comp_args)
+            mod = Cmodule(self.all_source, hash_fn, openmp=openmp,
+                          extra_inc_dir=[pybind11.get_include()])
             module = mod.load()
             return getattr(module, modname)
 
@@ -1249,11 +1243,8 @@ class ScanBase(object):
 
         self.all_source += src_pybind
 
-        extra_comp_args = ["-fopenmp", "-fPIC"] if openmp else []
-        mod = Cmodule(self.all_source, hash_fn,
-                      extra_inc_dir=[pybind11.get_include()],
-                      extra_compile_args=extra_comp_args,
-                      extra_link_args=extra_comp_args)
+        mod = Cmodule(self.all_source, hash_fn, openmp=openmp,
+                      extra_inc_dir=[pybind11.get_include()])
         module = mod.load()
         return getattr(module, modname)
 
