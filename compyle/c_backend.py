@@ -219,8 +219,9 @@ void scan( T* ary, long N, T initial_val${args_extra}){
         %endif
         T* stage1_res = new T[ntiles];
         T* stage2_res = new T[ntiles + 1];
-
+        %if openmp:
         #pragma omp parallel
+        %endif
         {
             // Step 1 - reducing each tile
             %if openmp:

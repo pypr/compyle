@@ -13,18 +13,19 @@ from distutils.command import build_ext
 from distutils.core import setup
 from distutils.errors import CompileError, LinkError
 
-from .ext_module import get_platform_dir, get_ext_extension
+from .ext_module import get_platform_dir, get_ext_extension, get_openmp_flags
 from .capture_stream import CaptureMultipleStreams  # noqa: 402
 
 
 class Cmodule:
-    def __init__(self, src, hash_fn, root=None, verbose=False,
+    def __init__(self, src, hash_fn, root=None, verbose=False, openmp=False,
                  extra_inc_dir=[pybind11.get_include()],
                  extra_link_args=[], extra_compile_args=[]):
         self.src = src
         self.hash = hash_fn
         self.name = f'm_{self.hash}'
         self.verbose = verbose
+        self.openmp = openmp
         self.extra_inc_dir = extra_inc_dir
         self.extra_link_args = extra_link_args
         self.extra_compile_args = extra_compile_args
@@ -62,6 +63,7 @@ class Cmodule:
         return not exists(self.ext_path)
 
     def build(self):
+        self._include_openmp()
         ext = Extension(name=self.name,
                         sources=[self.src_path],
                         language='c++',
@@ -110,6 +112,12 @@ class Cmodule:
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
+
+    def _include_openmp(self):
+        if self.openmp:
+            ec, el = get_openmp_flags()
+            self.extra_compile_args += ec
+            self.extra_link_args += el
 
     def _message(self, *args):
         msg = ' '.join(args)
