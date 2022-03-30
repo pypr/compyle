@@ -86,7 +86,7 @@ class Cmodule:
                 shutil.move(join(self.build_dir, self.name +
                             get_ext_extension()), self.ext_path)
 
-        except(CompileError, LinkError):
+        except(CompileError, LinkError, SystemExit):
             hline = "*"*80
             print(hline + "\nERROR")
             s_out = stream.get_output()
