@@ -29,6 +29,7 @@ class Cmodule:
         self.extra_inc_dir = extra_inc_dir
         self.extra_link_args = extra_link_args
         self.extra_compile_args = extra_compile_args
+        self._use_cpp11()
 
         self._setup_root(root)
         self._setup_filenames()
@@ -118,6 +119,9 @@ class Cmodule:
             ec, el = get_openmp_flags()
             self.extra_compile_args += ec
             self.extra_link_args += el
+
+    def _use_cpp11(self):
+        self.extra_compile_args += ['-std=c++11']
 
     def _message(self, *args):
         msg = ' '.join(args)
