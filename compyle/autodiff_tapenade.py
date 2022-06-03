@@ -6,6 +6,7 @@ import functools
 import re
 import numpy as np
 from mako.template import Template
+from distutils.errors import CompileError
 
 from .profile import profile
 from .translator import CConverter
@@ -15,6 +16,7 @@ from compyle.api import get_config
 
 from .ext_module import get_md5
 from .cimport import Cmodule, get_tpnd_obj_dir, compile_tapenade_source
+from .transpiler import Transpiler
 
 
 pyb11_setup_header = '''
@@ -108,7 +110,6 @@ def get_diff_signature(f, active, mode='forward'):
     pyb_py = []
     pure_c = []
     pure_py = []
-
     for s in sig.parameters:
         typ = str(sig.parameters[s].annotation.type)
         if s not in active:
@@ -144,10 +145,10 @@ class GradBase:
     def __init__(self, func, wrt, gradof, mode='forward', backend='tapenade'):
         self.backend = backend
         self.func = func
-        self.args = None
+        self.args = list(inspect.signature(self.func).parameters.keys())
         self.wrt = wrt
         self.gradof = gradof
-        self.active = wrt + gradof
+        self.active = []
         self.mode = mode
         self.name = func.__name__
         self._config = get_config()
@@ -156,10 +157,14 @@ class GradBase:
         self.grad_all_source = 'Not yet generated'
         self.tapenade_op = 'Not yet generated'
         self.c_func = self.c_gen_error
+        self.tp = Transpiler(backend='c')
         self._get_sources()
+        self.grad_args, self.grad_types = self._get_grad_def(self.grad_source)
+        self._get_active_vars()
 
     def _get_sources(self):
-
+        self.tp.add(self.func)
+        # self.source = self.tp.get_code()
         self.source = get_source(self.func)
         with open(self.name + '.c', 'w') as f:
             f.write(self.source)
@@ -172,16 +177,23 @@ class GradBase:
                 f"{FUNC_SUFFIX_F}",
                 "-head",
                 f'{self.name}({" ".join(self.wrt)})\({" ".join(self.gradof)})'
+                "-nooptim", "recomputeintermediates",
+                "-nooptim", "spareinit",
             ]
         elif self.mode == 'reverse':
             command = [
                 "tapenade", f"{self.name}.c", "-b", "-o",
-                f"{self.name}_reverse_diff", "-tgtvarname",
-                f"{VAR_SUFFIX_R}", "-tgtfuncname",
+                f"{self.name}_reverse_diff", "-adjvarname",
+                f"{VAR_SUFFIX_R}", "-adjfuncname",
                 f"{FUNC_SUFFIX_R}",
                 "-head",
-                f'{self.name}({" ".join(self.wrt)})\({" ".join(self.gradof)})'
+                f'{self.name}({" ".join(self.wrt)})\({" ".join(self.gradof)})',
+                "-nooptim", "recomputeintermediates",
+                "-nooptim", "diffliveness",
+                "-fixinterface"
             ]
+        else:
+            raise ValueError(f"supported modes are 'forward' and 'reverse', got {self.mode}")
 
         op_tapenade = ""
         try:
@@ -212,14 +224,66 @@ class GradBase:
         else:
             return np.asarray(x)
 
+    def _get_grad_def(self, src):
+        lines_src = src.split("\n")
+        n_lines = len(lines_src)
+        i = 0
+        start = 0
+        while i < n_lines:
+            if lines_src[i].strip().startswith('void'):
+                start = i
+                break
+            i += 1
+        if i == n_lines:
+            raise CompileError('could not find fn definition for derivative')
+
+        end = 0
+
+        while i < n_lines:
+            if lines_src[i].strip().endswith("{"):
+                end = i
+                break
+            i += 1
+        if i == n_lines:
+            raise CompileError('could not find fn definition for derivative')
+
+        src_def = " ".join([i.strip() for i in lines_src[start:end + 1]])
+
+        args_type = re.search(r"\((.*?)\)", src_def).group(1).split(",")
+        args = []
+        types = []
+        for val in args_type:
+            temp = val.split()
+            if len(temp) == 2:
+                t1 = temp[0]
+                t2 = temp[1]
+            elif len(temp) == 3:
+                t1 = temp[0]
+                t2 = temp[1] + temp[2]
+            else:
+                raise CompileError('could not get arguments from generated fn')
+            if t2.startswith("*"):
+                t1 += "*"
+                t2 = t2[1:]
+            types.append(t1)
+            args.append(t2)
+        return args, types
+
+    def _get_active_vars(self):
+        if self.mode == 'forward':
+            suff = VAR_SUFFIX_F
+        elif self.mode == 'reverse':
+            suff = VAR_SUFFIX_R
+
+        for i, var in enumerate(self.grad_args):
+            if var.endswith(suff):
+                self.active.append(self.grad_args[i-1])
+
     @profile
     def __call__(self, *args, **kw):
         c_args = [self._massage_arg(x) for x in args]
 
-        if self.backend == 'tapenade':
-            self.c_func(*c_args)
-
-        elif self.backend == 'cuda':
+        if self.backend == 'cuda':
             import pycuda.driver as drv
             event = drv.Event()
             self.c_func(*c_args, **kw)
@@ -262,10 +326,61 @@ class ForwardGrad(GradBase):
                                    c_call=c_call)
 
         self.grad_all_source = self.grad_source + pyb_bind
-
         mod = Cmodule(self.grad_all_source, hash_fn)
         module = mod.load()
         return getattr(module, modname)
+
+    def _get_len_wrt_args(self, args):
+        len_wrt_args = []
+        for i in range(len(self.args)):
+            if self.args[i] in self.wrt:
+                len_wrt_args.append(len(args[i]))
+        return len_wrt_args
+
+    def _add_wrt_args_fwd(self, args, wrt_var, len_wrt_arg):
+        final_args = []
+        gradof_args = []
+        wrt_arg = None
+        is_grad_var = []
+        for i in range(len(args)):
+            final_args.append(args[i])
+            is_grad_var.append(0)
+            if self.args[i] in self.active:
+                temp = np.zeros((len(args[i]), len_wrt_arg))
+                final_args.append(temp)
+                is_grad_var.append(1)
+                if self.args[i] == wrt_var:
+                    wrt_arg = temp
+                if self.args[i] in self.gradof:
+                    gradof_args.append(temp)
+        return final_args, gradof_args, wrt_arg, is_grad_var
+
+    def _call_multi_fwd(self, final_args, wrt_arg, is_grad_var):
+        for i in range(len(wrt_arg)):
+            wrt_arg[i][i] = 1.0
+
+        for i in range(len(wrt_arg)):
+            temp_args = []
+            for j, arg in enumerate(final_args):
+                if not is_grad_var[j]:
+                    temp_args.append(arg)
+                else:
+                    temp_args.append(arg[:, i])
+            self.c_func(*temp_args)
+
+    @profile
+    def __call__(self, *args):
+        c_args = [self._massage_arg(x) for x in args]
+
+        len_g_args = self._get_len_wrt_args(c_args)
+
+        ans = []
+        for i, grad_var in enumerate(self.wrt):
+            final_args, gradof_args, wrt_arg, is_grad_var = self._add_wrt_args_fwd(c_args, grad_var, len_g_args[i])
+
+            self._call_multi_fwd(final_args, wrt_arg, is_grad_var)
+            ans.append(gradof_args)
+        return ans
 
 
 class ElementwiseGrad(GradBase):
@@ -357,15 +472,16 @@ class ReverseGrad(GradBase):
     def __init__(self, func, wrt, gradof, backend='tapenade'):
         super().__init__(func, wrt, gradof, mode='reverse', backend=backend)
         self.c_func = self._c_reverse_diff()
+        # print(self.source)
 
     def _c_reverse_diff(self):
         self.grad_source = pyb11_setup_header_rev + self.grad_source
         hash_fn = get_md5(self.grad_source)
         modname = f'm_{hash_fn}'
 
-        pyb_all, c_all, self.args, _ = get_diff_signature(self.func,
-                                                          self.active,
-                                                          mode=self.mode)
+        pyb_all, c_all, _, _ = get_diff_signature(self.func,
+                                                  self.active,
+                                                  mode=self.mode)
         pyb_call = ", ".join(pyb_all)
         c_call = ", ".join(c_all)
 
@@ -395,3 +511,56 @@ class ReverseGrad(GradBase):
         cond1 = not os.path.exists(os.path.join(tpnd_obj_dir, 'adBuffer.o'))
         cond2 = not os.path.exists(os.path.join(tpnd_obj_dir, 'adStack.o'))
         return cond1 or cond2
+
+    def _get_len_gradof_args(self, args):
+        len_gradof_args = []
+        for i in range(len(self.args)):
+            if self.args[i] in self.gradof:
+                len_gradof_args.append(len(args[i]))
+        return len_gradof_args
+
+    def _add_grad_args_rev(self, args, gradof_var, len_gradof_arg):
+        final_args = []
+        wrt_args = []
+        gradof_arg = None
+        is_grad_var = []
+        for i in range(len(args)):
+            final_args.append(args[i])
+            is_grad_var.append(0)
+            if self.args[i] in self.active:
+                temp = np.zeros((len_gradof_arg, len(args[i])))
+                final_args.append(temp)
+                is_grad_var.append(1)
+                if self.args[i] == gradof_var:
+                    gradof_arg = temp
+                if self.args[i] in self.wrt:
+                    wrt_args.append(temp)
+        return final_args, wrt_args, gradof_arg, is_grad_var
+
+    def _call_multi_rev(self, final_args, gradof_arg, is_grad_var):
+        for i in range(len(gradof_arg)):
+            gradof_arg[i][i] = 1.0
+
+        for i in range(len(gradof_arg)):
+            temp_args = []
+            for j, arg in enumerate(final_args):
+                if not is_grad_var[j]:
+                    temp_args.append(arg)
+                else:
+                    temp_args.append(arg[i])
+            self.c_func(*temp_args)
+
+    @profile
+    def __call__(self, *args):
+        c_args = [self._massage_arg(x) for x in args]
+        self.c_func(*c_args)
+        return
+        len_g_args = self._get_len_gradof_args(c_args)
+
+        ans = []
+        for i, grad_var in enumerate(self.gradof):
+            final_args, wrt_args, gradof_arg, is_grad_var = self._add_grad_args_rev(c_args, grad_var, len_g_args[i])
+
+            self._call_multi_rev(final_args, gradof_arg, is_grad_var)
+            ans.append(wrt_args)
+        return ans
