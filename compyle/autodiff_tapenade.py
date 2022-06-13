@@ -164,8 +164,7 @@ class GradBase:
 
     def _get_sources(self):
         self.tp.add(self.func)
-        # self.source = self.tp.get_code()
-        self.source = get_source(self.func)
+        self.source = self.tp.get_code(incl_header=False)
         with open(self.name + '.c', 'w') as f:
             f.write(self.source)
 
@@ -188,10 +187,11 @@ class GradBase:
                 f"{FUNC_SUFFIX_R}",
                 "-head",
                 f'{self.name}({" ".join(self.wrt)})\({" ".join(self.gradof)})',
-                "-nooptim", "recomputeintermediates",
-                "-nooptim", "diffliveness",
-                "-fixinterface"
+                "-nooptim", "adjointliveness",
             ]
+                # "-nooptim", "diffliveness",
+                # "-fixinterface"
+                # "-nooptim", "recomputeintermediates",
         else:
             raise ValueError(f"supported modes are 'forward' and 'reverse', got {self.mode}")
 
@@ -230,7 +230,8 @@ class GradBase:
         i = 0
         start = 0
         while i < n_lines:
-            if lines_src[i].strip().startswith('void'):
+            # if lines_src[i].strip().startswith(f'void {self.name}'):
+            if f'void {self.name}' in lines_src[i].strip():
                 start = i
                 break
             i += 1
@@ -248,7 +249,6 @@ class GradBase:
             raise CompileError('could not find fn definition for derivative')
 
         src_def = " ".join([i.strip() for i in lines_src[start:end + 1]])
-
         args_type = re.search(r"\((.*?)\)", src_def).group(1).split(",")
         args = []
         types = []
@@ -472,7 +472,6 @@ class ReverseGrad(GradBase):
     def __init__(self, func, wrt, gradof, backend='tapenade'):
         super().__init__(func, wrt, gradof, mode='reverse', backend=backend)
         self.c_func = self._c_reverse_diff()
-        # print(self.source)
 
     def _c_reverse_diff(self):
         self.grad_source = pyb11_setup_header_rev + self.grad_source
