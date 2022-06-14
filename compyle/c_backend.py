@@ -1,6 +1,27 @@
+from compyle.profile import profile
 from .translator import ocl_detect_type, KnownType
 from .cython_generator import CythonGenerator, get_func_definition
 from .cython_generator import getsourcelines
+from mako.template import Template
+from .ext_module import get_md5
+from .cimport import Cmodule
+from .transpiler import Transpiler
+from . import array
+
+import pybind11
+import numpy as np
+
+
+elwise_c_pybind = '''
+
+PYBIND11_MODULE(${modname}, m) {
+
+    m.def("${modname}", [](${pyb11_args}){
+        return ${name}(${pyb11_call});
+    });
+}
+
+'''
 
 
 class CBackend(CythonGenerator):
@@ -41,17 +62,50 @@ class CBackend(CythonGenerator):
     def _get_self_type(self):
         return KnownType('GLOBAL_MEM %s*' % self._class_name)
 
+class CCompile(CBackend):
+    def __init__(self, func):
+        super(CCompile, self).__init__()
+        self.func = func
+        self.src = "not yet generated"
+        self.tp = Transpiler(backend='c')
+        self.c_func = self._compile()
+        
+    def _compile(self):
+        self.tp.add(self.func)
+        self.src = self.tp.get_code()
+        
+        py_data, c_data = self.get_func_signature_pyb11(self.func)
+        
+        pyb11_args = ', '.join(py_data[0][:])
+        pyb11_call = ', '.join(py_data[1][:])
+        hash_fn = get_md5(self.src)
+        modname = f'm_{hash_fn}'
+        template = Template(elwise_c_pybind)
+        src_bind = template.render(
+            name=self.func.__name__,
+            modname=modname,
+            pyb11_args=pyb11_args,
+            pyb11_call=pyb11_call
+        )
+        self.src += src_bind
+    
+        mod = Cmodule(self.src, hash_fn, openmp=False,
+                      extra_inc_dir=[pybind11.get_include()])
+        module = mod.load()
+        return getattr(module, modname)
 
-elwise_c_pybind = '''
-
-PYBIND11_MODULE(${modname}, m) {
-
-    m.def("${modname}", [](${pyb11_args}){
-        return ${name}(${pyb11_call});
-    });
-}
-
-'''
+    def _massage_arg(self, x):
+        if isinstance(x, array.Array):
+            return x.dev
+        elif isinstance(x, np.ndarray):
+            return x
+        else:
+            return np.asarray(x)
+        
+    @profile
+    def __call__(self, *args, **kwargs):
+        c_args = [self._massage_arg(x) for x in args]
+        self.c_func(*c_args)
 
 elwise_c_template = '''
 
@@ -111,8 +165,9 @@ T reduce_all(long N, T initial_val${args_extra}){
         int ntiles = 1;
         %endif
         T* stage1_res = new T[ntiles];
-
-        #pragma omp parallel
+        %if openmp:
+        #pragma omp parallel for
+        %endif
         {
             // Step 1 - reducing each tile
             %if openmp:
@@ -128,9 +183,11 @@ T reduce_all(long N, T initial_val${args_extra}){
 
             stage1_res[itile] = reduce<T>(cur_start_idx, cur_tile_size,
                                           initial_val${call_extra});
+            %if openmp:
             #pragma omp barrier
 
             #pragma omp single
+            %endif
             ans = reduce_one_ar<T>(0, ntiles, initial_val, stage1_res);
         }
         delete[] stage1_res;
@@ -219,8 +276,9 @@ void scan( T* ary, long N, T initial_val${args_extra}){
         %endif
         T* stage1_res = new T[ntiles];
         T* stage2_res = new T[ntiles + 1];
-
+        %if openmp:
         #pragma omp parallel
+        %endif
         {
             // Step 1 - reducing each tile
             %if openmp:
@@ -236,9 +294,11 @@ void scan( T* ary, long N, T initial_val${args_extra}){
 
             stage1_res[itile] = reduce<T>(ary, cur_start_idx, cur_tile_size,
                                           initial_val${call_in_extra});
+            %if openmp:
             #pragma omp barrier
 
             #pragma omp single
+            %endif
             excl_scan_wo_ip_exp<T>(stage1_res, stage2_res,
                                    ntiles, initial_val);
 

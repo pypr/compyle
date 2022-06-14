@@ -8,17 +8,11 @@ once and have it run on different execution backends.
 
 from compyle import c_backend
 from functools import wraps
-from inspect import getmodule
-import operator
-from re import TEMPLATE
 from textwrap import wrap
-import json
 
 from mako.template import Template
 import numpy as np
-import py
 import pybind11
-from pyopencl.array import arange
 
 from .cimport import Cmodule
 from .config import get_config
@@ -555,11 +549,8 @@ class ElementwiseBase(object):
 
             self.all_source += src_bind
 
-            extra_comp_args = ["-fopenmp", "-fPIC"] if openmp else []
-            mod = Cmodule(self.all_source, hash_fn,
-                          extra_inc_dir=[pybind11.get_include()],
-                          extra_compile_args=extra_comp_args,
-                          extra_link_args=extra_comp_args)
+            mod = Cmodule(self.all_source, hash_fn, openmp=openmp,
+                          extra_inc_dir=[pybind11.get_include()])
             module = mod.load()
             return getattr(module, modname)
 
@@ -770,11 +761,8 @@ class ReductionBase(object):
             )
             self.all_source += src_pybind
 
-            extra_comp_args = ["-fopenmp", "-fPIC"] if openmp else []
-            mod = Cmodule(self.all_source, hash_fn,
-                          extra_inc_dir=[pybind11.get_include()],
-                          extra_compile_args=extra_comp_args,
-                          extra_link_args=extra_comp_args)
+            mod = Cmodule(self.all_source, hash_fn, openmp=openmp,
+                          extra_inc_dir=[pybind11.get_include()])
             module = mod.load()
             return getattr(module, modname)
 
@@ -1255,11 +1243,8 @@ class ScanBase(object):
 
         self.all_source += src_pybind
 
-        extra_comp_args = ["-fopenmp", "-fPIC"] if openmp else []
-        mod = Cmodule(self.all_source, hash_fn,
-                      extra_inc_dir=[pybind11.get_include()],
-                      extra_compile_args=extra_comp_args,
-                      extra_link_args=extra_comp_args)
+        mod = Cmodule(self.all_source, hash_fn, openmp=openmp,
+                      extra_inc_dir=[pybind11.get_include()])
         module = mod.load()
         return getattr(module, modname)
 
