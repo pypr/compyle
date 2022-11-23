@@ -6,9 +6,11 @@ from .types import kwtype_to_annotation
 import mako.template
 
 
-getfullargspec = getattr(
-    inspect, 'getfullargspec', inspect.getargspec
-)
+try:
+    getfullargspec = inspect.getfullargspec
+except AttributeError:
+    # compatibility with Python 2.7
+    getfullargspec = inspect.getargspec
 
 
 class Template(object):
