@@ -66,11 +66,7 @@ def kernel_cache_key_kwargs(obj, **kwargs):
 
 
 def getargspec(f):
-    try:
-        getargspec_f = inspect.getfullargspec
-    except AttributeError:
-        # compatibility with Python 2.7
-        getargspec_f = inspect.getargspec
+    getargspec_f = inspect.getfullargspec
     return getargspec_f(f)[0]
 
 
