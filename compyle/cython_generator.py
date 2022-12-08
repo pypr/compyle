@@ -593,6 +593,14 @@ class CythonGenerator(object):
     def _handle_cast_statement(self, name, call):
         # FIXME: This won't handle casting to pointers
         # using something like 'intp'
+
+        # Check if there is an inline comment at the end of the expression and
+        # move it to the end of the cast statement
+        cmmt = ''
+        if len(call.split('#')) >= 2:
+            cmmt = ' #' + ' #'.join(call.split('#')[1:])
+            call = call.split('#')[0].rstrip()
+
         call_args = call[5:-1].split(',')
         if len(call_args) <= 2:
             # Maintainś backward compatibility
@@ -604,7 +612,7 @@ class CythonGenerator(object):
             # separated by commas
             expr = ','.join(call_args[0:-1]).strip()
             ctype = call_args[-1].strip()[1:-1]
-        stmt = '%s = <%s> (%s)' % (name, ctype, expr)
+        stmt = '%s = <%s> (%s) %s' % (name, ctype, expr, cmmt)
         return stmt
 
     def _handle_atomic_statement_inc(self, name, call, is_serial):
