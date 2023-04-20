@@ -8,9 +8,208 @@ import sys
 
 from ..config import get_config, set_config, use_config
 from ..types import declare, KnownType, annotate
-from ..cython_generator import (CythonGenerator, CythonClassHelper,
-                                all_numeric, get_parallel_range)
+from ..cython_generator import (
+    CythonGenerator, CythonClassHelper, all_numeric, get_parallel_range,
+    condense_multiline_calls
+)
 
+class TestCondenseMultilineCalls(unittest.TestCase):
+    """
+    Test condense_multiline_calls
+    """
+    def _get_test_cases(self):
+        """
+        Returns a dictionary of test cases.
+        """
+        test_cases = dict(
+            no_change=dict(
+                input=[
+                    'def foo(x):\n',
+                    '    x += 1\n',
+                    '    return x\n',
+                ],
+                output=[
+                    'def foo(x):\n',
+                    '    x += 1\n',
+                    '    return x\n',
+                ]
+            ),
+
+            backslash_simple=dict(
+                input=[
+                    'def foo(x):\n',
+                    '    x += (111* \\ \n',
+                    '          222)\n',
+                    '    return x\n',
+                ],
+                output=[
+                    'def foo(x):\n',
+                    '    x += (111*222)\n',
+                    '    return x\n',
+                ]
+            ),
+
+            multiline_simple=dict(
+                input=[
+                    'def foo(x):\n',
+                    '    x += max(\n',
+                    '        111,\n',
+                    '        222\n',
+                    '    )\n',
+                    '    return x\n',
+                ],
+                output=[
+                    'def foo(x):\n',
+                    '    x += max(111,222)\n',
+                    '    return x\n',
+                ]
+            ),
+
+            multiline_with_backslash=dict(
+                input=[
+                    'def foo(x):\n',
+                    '    x += max(\n',
+                    '        111* \\ \n',
+                    '        222,\n',
+                    '        333* \\ \n',
+                    '        444\n',
+                    '    )\n',
+                    '    return x\n',
+                ],
+                output=[
+                    'def foo(x):\n',
+                    '    x += max(111*222,333*444)\n',
+                    '    return x\n',
+                ]
+            ),
+
+            multiline_with_backslash_and_comment=dict(
+                input=[
+                    'def foo(x):\n',
+                    '    x += max(\n',
+                    '        111* \\ # comment 1\n',
+                    '        222,\n',
+                    '        333 \\ # comment 2\n',
+                    '        )\n',
+                    '    return x\n',
+                ],
+                output=[
+                    'def foo(x):\n',
+                    '    x += max(111*222,333) #comment 2 #comment 1\n', 
+                    '    return x\n',
+                ]
+            ),
+
+            multiline_with_backslash_and_comment_and_indent=dict(
+                input=[
+                    'def foo(x):\n',
+                    '    x += max(\n',
+                    '            abs(111* \\ # comment 1\n',
+                    '                222),\n',
+                    '            333 \\ # comment 2\n',
+                    '            )\n',
+                    '    return x\n',
+                ],
+                output=[
+                    'def foo(x):\n',
+                    '    x += max(abs(111*222),333) #comment 2 #comment 1\n',
+                    '    return x\n',
+                ]
+            ),
+
+            multiline_without_trailing_newline=dict(
+                input=[
+                    'def foo(x):',
+                    '    x += max(',
+                    '        111,',
+                    '        222',
+                    '    )',
+                    '    return x',
+                ],
+                output=[
+                    'def foo(x):\n',
+                    '    x += max(111,222)\n',
+                    '    return x\n',
+                ]
+            ),
+
+            simple_compyle=dict(
+                input=[
+                    '@annotate\n',
+                    'def foo(\n',
+                    '        i, x, y, z, u, v, w, \n',
+                    '        rho\n',
+                    '):\n',
+                    '    x[i] = rho[i] * (\n',
+                    '        u[i] * cos(y[i]) - v[i] * sin(z[i])\n',
+                    '    )\n',
+                ],
+                output=[
+                    '@annotate\n',
+                    'def foo(i, x, y, z, u, v, w,rho):\n',
+                    '    x[i] = rho[i] * (u[i] * cos(y[i]) - v[i] * '\
+                    'sin(z[i]))\n',
+                ]
+            ),
+
+            simple_compyle_with_backslash_and_comment=dict(
+                input=[
+                    '@annotate\n',
+                    'def foo(i, x, y):\n',
+                    '    x[i] = max(\\ # comment 1\n',
+                    '        111, \\ # comment 2\n',
+                    '        222, \\ # comment 3\n',
+                    '        333 \\ # comment 4\n',
+                    '        )\n',
+                ],
+                output=[
+                    '@annotate\n',
+                    'def foo(i, x, y):\n',
+                    '    x[i] = max(111,222,333) #comment 4 #comment 3 '\
+                    '#comment 2 #comment 1\n',
+                ]
+            ),
+
+            simple_compyle_without_trailing_newline=dict(
+                input=[
+                    '@annotate',
+                    'def foo(i, x, y):',
+                    '    x[i] = max(',
+                    '        111,',
+                    '        222,',
+                    '        333',
+                    '        )',
+                ],
+                output=[
+                    '@annotate\n',
+                    'def foo(i, x, y):\n',
+                    '    x[i] = max(111,222,333)\n',
+                ]
+            )
+        )
+        return test_cases
+    
+    def test_should_work_for_all_test_cases(self):
+        """
+        Test that condense_multiline_calls works for all test cases.
+        """
+        test_cases_dict = self._get_test_cases()
+        for test_case in test_cases_dict.keys():
+            # Given
+            input = test_cases_dict[test_case]['input']
+            output = test_cases_dict[test_case]['output']
+
+            # When
+            actual_output = condense_multiline_calls(input)
+
+            # Error message
+            msg = f"\n\nError in test case: ({test_case})\n"\
+                f"Input: {input}\n"\
+                f"Expected Output: {output}\n"\
+                f"Actual Output: {actual_output}\n"
+
+            # Then
+            self.assertEqual(actual_output, output, msg)
 
 class BasicEq:
     def __init__(self, hidden=None, rho=0.0, c=0.0):

@@ -90,6 +90,127 @@ ${line}
                         methods=self.methods)
 
 
+def condense_multiline_calls(lines:list):
+    """
+    This function takes a list of lines and condenses multiline calls into
+    single lines, while preserving indentation, and moving any inline comments
+    to the end of the line.
+
+    Parameters
+    ----------
+    lines : list of str
+        The lines of code to condense.
+    
+    Returns
+    -------
+    condensed_lines : list of str
+        The condensed lines of code.
+    """
+    def _line_is_complete(line:str):
+        """
+        This function checks if a line is complete, i.e. if it has the same
+        number of opening and closing parentheses, and if it does not end with
+        a backslash.
+
+        Parameters
+        ----------
+        line : str
+            The line to check.
+        
+        Returns
+        -------
+        is_complete : bool
+            True if the line is complete, False otherwise.
+        """
+        tmp_line = line.strip()
+        cond1 = tmp_line.count('(') == tmp_line.count(')')
+        cond2 = not tmp_line.endswith('\\')
+        return (cond1 and cond2)
+    
+    lines = [line.rstrip() for line in lines]
+    condensed_lines = []
+    line_count = 0
+    for idx, line in enumerate(lines):
+        if line.endswith('\n'):
+            # Remove the newline character
+            line = line[:-1]
+
+        if line_count > idx:
+            # This line has already been condensed
+            continue
+        
+        cond = (line.count('(') == 0) and (line.count(')') >= 1)
+        if _line_is_complete(line) or cond:
+            # This line is complete, or it only has closing parentheses
+            condensed_lines.append(line)
+            line_count += 1
+            continue
+        else:
+            # This line is incomplete, so it needs to be condensed
+            current_line = line.rstrip()
+            if current_line.endswith('\\'):
+                # Remove the backslash
+                current_line = current_line[:-1]
+            
+            if idx + 1 >= len(lines):
+                # This line is incomplete, but there are no more lines
+                raise SyntaxError(f"{idx}: {line}\n '(' was never closed")
+            
+            for next_line in lines[idx+1:]:
+                # Iterate over the next lines, adding them to the current line
+                # until the line is complete
+                tmp = current_line.split('#')
+                code_part = tmp[0].rstrip()
+                comment_part = None
+                
+                if code_part.endswith('\\'):
+                    # Remove the backslash
+                    code_part = code_part[:-1]
+
+                if len(tmp) > 1:
+                    # There is an inline comment
+                    comment_part = '#'.join(tmp[1:])
+
+                if len(next_line.split('#')) >= 2:
+                    # There is an inline comment in the next line. Deal with
+                    # it by splitting the line into a code part and a comment
+                    next_tmp = next_line.split('#')
+                    next_line = next_tmp[0]
+                    if comment_part is not None:
+                        comment_part = comment_part.strip()
+                        comment_part = " #".join(
+                            next_tmp[1:] + [comment_part]
+                        )
+                    else:
+                        comment_part = " #".join(next_tmp[1:])
+                
+                if next_line.rstrip().endswith('\\'):
+                    # Remove the backslash
+                    next_line = next_line.rstrip()[:-1]
+                
+                # Set the current line to the code part of the current line
+                # plus the next line
+                current_line = code_part.rstrip() + next_line.strip()
+                line_count += 1
+
+                if comment_part is not None:
+                    # Add the inline comment to the end of the line
+                    current_line += f" #{comment_part.strip()}"
+
+                if _line_is_complete(current_line):
+                    # The line is complete, so break out of the loop
+                    break
+
+            condensed_lines.append(current_line)
+            line_count += 1
+    
+    # Add '\n' to the end of each line if it does not already have one
+    condensed_lines = [
+        line if line.endswith('\n') else f"{line}\n"
+        for line in condensed_lines
+    ]
+    return condensed_lines
+
 def get_func_definition(sourcelines):
     """Given a block of source lines for a method or function,
     get the lines for the function block.
@@ -229,6 +350,7 @@ class CythonGenerator(object):
 
         """
         sourcelines = getsourcelines(func)[0]
+        sourcelines = condense_multiline_calls(sourcelines)
         defn, lines = get_func_definition(sourcelines)
         f_name, returns, args = self._analyze_method(func, lines)
         py_args = []
@@ -384,6 +506,7 @@ class CythonGenerator(object):
     def _get_method_wrapper(self, meth, indent=' ' * 8, declarations=None,
                             is_serial=False):
         sourcelines = getsourcelines(meth)[0]
+        sourcelines = condense_multiline_calls(sourcelines)
         defn, lines = get_func_definition(sourcelines)
         m_name, returns, args = self._analyze_method(meth, lines)
         c_defn = self._get_c_method_spec(m_name, returns, args)
@@ -466,10 +589,27 @@ class CythonGenerator(object):
     def _handle_cast_statement(self, name, call):
         # FIXME: This won't handle casting to pointers
         # using something like 'intp'
+
+        # Check if there is an inline comment at the end of the expression and
+        # move it to the end of the cast statement
+        cmmt = ''
+        if len(call.split('#')) >= 2:
+            cmmt = ' #' + ' #'.join(call.split('#')[1:])
+            call = call.split('#')[0].rstrip()
+
         call_args = call[5:-1].split(',')
-        expr = call_args[0].strip()
-        ctype = call_args[1].strip()[1:-1]
-        return '%s = <%s> (%s)' % (name, ctype, expr)
+        if len(call_args) <= 2:
+            # Maintainś backward compatibility
+            expr = call_args[0].strip()
+            ctype = call_args[-1].strip()[1:-1]
+        else:
+            # Deals with cases like `cast(max(abs(x), abs(y)), 'int')
+            # where the expression is a function call with multiple arguments
+            # separated by commas
+            expr = ','.join(call_args[0:-1]).strip()
+            ctype = call_args[-1].strip()[1:-1]
+        stmt = '%s = <%s> (%s) %s' % (name, ctype, expr, cmmt)
+        return stmt
 
     def _handle_atomic_statement_inc(self, name, call, is_serial):
         # FIXME: This won't handle casting to pointers
