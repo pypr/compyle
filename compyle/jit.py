@@ -66,8 +66,7 @@ def kernel_cache_key_kwargs(obj, **kwargs):
 
 
 def getargspec(f):
-    getargspec_f = getattr(inspect, 'getfullargspec',
-                           getattr(inspect, 'getargspec'))
+    getargspec_f = inspect.getfullargspec
     return getargspec_f(f)[0]
 
 

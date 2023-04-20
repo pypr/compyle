@@ -153,7 +153,7 @@ class Kernel(object):
         return re.sub(r'\bdouble\b', 'float', s)
 
     def _get_func_info(self):
-        getfullargspec = getattr(inspect, 'getfullargspec', inspect.getargspec)
+        getfullargspec = inspect.getfullargspec
         argspec = getfullargspec(self.func)
         annotations = getattr(
             argspec, 'annotations', self.func.__annotations__

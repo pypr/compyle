@@ -262,9 +262,7 @@ class CythonGenerator(object):
         and a list of [(arg_name, value),...].
         """
         name = meth.__name__
-        getfullargspec = getattr(
-            inspect, 'getfullargspec', inspect.getargspec
-        )
+        getfullargspec = inspect.getfullargspec
         argspec = getfullargspec(meth)
         args = argspec.args
         is_method = False
@@ -357,9 +355,7 @@ class CythonGenerator(object):
 
     def _get_method_body(self, meth, lines, indent=' ' * 8, declarations=None,
                          is_serial=False):
-        getfullargspec = getattr(
-            inspect, 'getfullargspec', inspect.getargspec
-        )
+        getfullargspec = inspect.getfullargspec
         args = set(getfullargspec(meth).args)
         src = [self._process_body_line(line, is_serial=is_serial)
                for line in lines]
