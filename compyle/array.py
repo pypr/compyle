@@ -22,6 +22,9 @@ try:
 
 except ImportError as e:
     pass
+except pycuda._driver.Error as e:
+    print(e)
+    print("Error loading CUDA driver, CUDA backend will not work.")
 
 
 def get_backend(backend=None):
