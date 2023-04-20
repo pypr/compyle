@@ -100,7 +100,7 @@ def condense_multiline_calls(lines:list):
     ----------
     lines : list of str
         The lines of code to condense.
-    
+
     Returns
     -------
     condensed_lines : list of str
@@ -116,7 +116,7 @@ def condense_multiline_calls(lines:list):
         ----------
         line : str
             The line to check.
-        
+
         Returns
         -------
         is_complete : bool
@@ -126,7 +126,7 @@ def condense_multiline_calls(lines:list):
         cond1 = tmp_line.count('(') == tmp_line.count(')')
         cond2 = not tmp_line.endswith('\\')
         return (cond1 and cond2)
-    
+
     lines = [line.rstrip() for line in lines]
     condensed_lines = []
     line_count = 0
@@ -138,7 +138,7 @@ def condense_multiline_calls(lines:list):
         if line_count > idx:
             # This line has already been condensed
             continue
-        
+
         cond = (line.count('(') == 0) and (line.count(')') >= 1)
         if _line_is_complete(line) or cond:
             # This line is complete, or it only has closing parentheses
@@ -151,18 +151,18 @@ def condense_multiline_calls(lines:list):
             if current_line.endswith('\\'):
                 # Remove the backslash
                 current_line = current_line[:-1]
-            
+
             if idx + 1 >= len(lines):
                 # This line is incomplete, but there are no more lines
                 raise SyntaxError(f"{idx}: {line}\n '(' was never closed")
-            
+
             for next_line in lines[idx+1:]:
                 # Iterate over the next lines, adding them to the current line
                 # until the line is complete
                 tmp = current_line.split('#')
                 code_part = tmp[0].rstrip()
                 comment_part = None
-                
+
                 if code_part.endswith('\\'):
                     # Remove the backslash
                     code_part = code_part[:-1]
@@ -183,11 +183,11 @@ def condense_multiline_calls(lines:list):
                         )
                     else:
                         comment_part = " #".join(next_tmp[1:])
-                
+
                 if next_line.rstrip().endswith('\\'):
                     # Remove the backslash
                     next_line = next_line.rstrip()[:-1]
-                
+
                 # Set the current line to the code part of the current line
                 # plus the next line
                 current_line = code_part.rstrip() + next_line.strip()
@@ -203,7 +203,7 @@ def condense_multiline_calls(lines:list):
 
             condensed_lines.append(current_line)
             line_count += 1
-    
+
     # Add '\n' to the end of each line if it does not already have one
     condensed_lines = [
         line if line.endswith('\n') else f"{line}\n"
@@ -350,7 +350,7 @@ class CythonGenerator(object):
 
         """
         sourcelines = getsourcelines(func)[0]
-        sourcelines = condense_multiline_calls(sourcelines)
+        #sourcelines = condense_multiline_calls(sourcelines)
         defn, lines = get_func_definition(sourcelines)
         f_name, returns, args = self._analyze_method(func, lines)
         py_args = []
@@ -506,7 +506,7 @@ class CythonGenerator(object):
     def _get_method_wrapper(self, meth, indent=' ' * 8, declarations=None,
                             is_serial=False):
         sourcelines = getsourcelines(meth)[0]
-        sourcelines = condense_multiline_calls(sourcelines)
+        #sourcelines = condense_multiline_calls(sourcelines)
         defn, lines = get_func_definition(sourcelines)
         m_name, returns, args = self._analyze_method(meth, lines)
         c_defn = self._get_c_method_spec(m_name, returns, args)
