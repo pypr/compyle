@@ -155,6 +155,7 @@ def get_tpnd_obj_dir():
 
 
 def compile_tapenade_source(verbose=0):
+    print("Setting up Tapenade source code...")
     try:
         obj_dir_tpnd = get_tpnd_obj_dir()
         with CaptureMultipleStreams() as stream:

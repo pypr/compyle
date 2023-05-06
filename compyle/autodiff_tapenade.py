@@ -4,6 +4,8 @@ import os
 import subprocess
 import functools
 import re
+import tempfile
+import shutil
 import numpy as np
 from mako.template import Template
 from distutils.errors import CompileError
@@ -156,6 +158,7 @@ class GradBase:
         self.grad_source = 'Not yet generated'
         self.grad_all_source = 'Not yet generated'
         self.tapenade_op = 'Not yet generated'
+        self.message = ""
         self.c_func = self.c_gen_error
         self.tp = Transpiler(backend='c')
         self._get_sources()
@@ -165,7 +168,10 @@ class GradBase:
     def _get_sources(self):
         self.tp.add(self.func)
         self.source = self.tp.get_code(incl_header=False)
-        with open(self.name + '.c', 'w') as f:
+
+        temp_dir = tempfile.mkdtemp()
+        
+        with open(os.path.join(temp_dir, self.name + '.c'), 'w') as f:
             f.write(self.source)
 
         if self.mode == 'forward':
@@ -195,23 +201,39 @@ class GradBase:
         else:
             raise ValueError(f"supported modes are 'forward' and 'reverse', got {self.mode}")
 
-        op_tapenade = ""
-        try:
-            proc = subprocess.run(command, capture_output=True, text=True)
-            op_tapenade += proc.stdout
-        except subprocess.CalledProcessError as e:
-            print(e)
-            raise RuntimeError(
-                "Encountered errors while differentiating through Tapenade.")
-        self.tapenade_op = op_tapenade
-
         if self.mode == 'forward':
             f_extn = "_forward_diff_d.c"
         elif self.mode == 'reverse':
             f_extn = "_reverse_diff_b.c"
+        
+        op_tapenade = ""
+        try:
+            proc = subprocess.run(command, capture_output=True, text=True, cwd=temp_dir)
+            op_tapenade += proc.stdout
+        except subprocess.CalledProcessError as e:
+            self.read_msg(temp_dir, f_extn)
+            print(e)
+            print("*"*80)
+            print(self.message)
+            print("*"*80)
+            raise RuntimeError(
+                "Encountered errors while differentiating through Tapenade.")
+        self.tapenade_op = op_tapenade
+        self.read_msg(temp_dir, f_extn)
 
-        with open(self.name + f_extn, 'r') as f:
+        with open(os.path.join(temp_dir, self.name + f_extn), 'r') as f:
             self.grad_source = f.read()
+
+    def read_msg(self, temp_dir, f_extn):
+        try:
+            with open(os.path.join(temp_dir, self.name + f_extn[:-1] + "msg"), 'r') as f:
+                self.message = f.read()
+        except:
+            try:
+                with open(os.path.join(temp_dir, self.name + f_extn[:-1] + "msg~"), 'r') as f:
+                    self.message = f.read()
+            except:
+                pass
 
     def c_gen_error(*args):
         raise RuntimeError("Differentiated function not yet generated")
@@ -501,7 +523,8 @@ class ReverseGrad(GradBase):
                            os.path.join(tpnd_obj_dir, 'adStack.o')]
         mod = Cmodule(self.grad_all_source, hash_fn,
                       extra_inc_dir=extra_inc_dir,
-                      extra_link_args=extra_link_args)
+                      extra_link_args=extra_link_args,
+                      extra_compile_args=['-ftemplate-depth=1024', "-O3"])
         module = mod.load()
         return getattr(module, modname)
 
@@ -536,7 +559,7 @@ class ReverseGrad(GradBase):
                     wrt_args.append(temp)
         return final_args, wrt_args, gradof_arg, is_grad_var
 
-    def _call_multi_rev(self, final_args, gradof_arg, is_grad_var):
+    def _call_multi_rev(self, final_args, gradof_arg, is_grad_var, len_gradof_args):
         for i in range(len(gradof_arg)):
             gradof_arg[i][i] = 1.0
 
@@ -548,18 +571,20 @@ class ReverseGrad(GradBase):
                 else:
                     temp_args.append(arg[i])
             self.c_func(*temp_args)
+    
+    def _get_grad_dict(self, wrt_args, len_gradof_args):
+        grads = {}
+        for varname, arg in zip(self.wrt, wrt_args):
+            if len_gradof_args > 1:
+                grads[varname] = arg
+            else:
+                grads[varname] = arg[0]
+        return grads
 
+    def _update_cache(self, wrt_args, gradof_arg, gradof_var):
+        self.cache[gradof_var] = [wrt_args, gradof_arg]
+        
     @profile
     def __call__(self, *args):
         c_args = [self._massage_arg(x) for x in args]
         self.c_func(*c_args)
-        return
-        len_g_args = self._get_len_gradof_args(c_args)
-
-        ans = []
-        for i, grad_var in enumerate(self.gradof):
-            final_args, wrt_args, gradof_arg, is_grad_var = self._add_grad_args_rev(c_args, grad_var, len_g_args[i])
-
-            self._call_multi_rev(final_args, gradof_arg, is_grad_var)
-            ans.append(wrt_args)
-        return ans
