@@ -5,7 +5,6 @@ import inspect
 import ast
 import importlib
 import warnings
-import json
 from pytools import memoize
 from .config import get_config
 from .cython_generator import CythonGenerator
