@@ -301,8 +301,11 @@ class Transpiler(object):
         cb = CodeBlock(code, code)
         self.blocks.append(cb)
 
-    def get_code(self):
-        code = [self.header] + [x.code for x in self.blocks]
+    def get_code(self, incl_header=True):
+        if incl_header:
+            code = [self.header] + [x.code for x in self.blocks]
+        else:
+            code = [x.code for x in self.blocks]
         return '\n'.join(code)
 
     def compile(self):

@@ -12,9 +12,11 @@ from distutils.extension import Extension
 from distutils.command import build_ext
 from distutils.core import setup
 from distutils.errors import CompileError, LinkError
+from distutils.sysconfig import customize_compiler
 
 from .ext_module import get_platform_dir, get_ext_extension, get_openmp_flags
 from .capture_stream import CaptureMultipleStreams  # noqa: 402
+from distutils.ccompiler import new_compiler
 
 
 class Cmodule:
@@ -127,3 +129,58 @@ class Cmodule:
         msg = ' '.join(args)
         if self.verbose:
             print(msg)
+
+
+def wget_tpnd_headers():
+    import requests
+    "https://gitlab.inria.fr/tapenade/tapenade/-/raw/3.16-v2/ADFirstAidKit/adBuffer.c?inline=false"
+    "https://gitlab.inria.fr/tapenade/tapenade/-/raw/3.16-v2/ADFirstAidKit/adBuffer.h?inline=false"
+    baseurl = 'https://gitlab.inria.fr/tapenade/tapenade/-/raw/3.16-v2/ADFirstAidKit/{}?inline=false'
+    files = ['adBuffer.c', 'adBuffer.h', 'adStack.c', 'adStack.h']
+    reqs = [requests.get(baseurl.format(file)) for file in files]
+    saveloc = get_tpnd_obj_dir()
+    if not os.path.exists(saveloc):
+        os.mkdir(saveloc)
+
+    for file, r in zip(files, reqs):
+        with open(join(saveloc, file), 'wb') as f:
+            f.write(r.content)
+
+
+def get_tpnd_obj_dir():
+    plat_dir = get_platform_dir()
+    root = expanduser(join('~', '.compyle', 'source', plat_dir))
+    tpnd_dir = join(root, 'tapenade_src')
+    return tpnd_dir
+
+
+def compile_tapenade_source(verbose=0):
+    print("Setting up Tapenade source code...")
+    try:
+        obj_dir_tpnd = get_tpnd_obj_dir()
+        with CaptureMultipleStreams() as stream:
+            wget_tpnd_headers()
+            os.environ["CC"] = 'g++'
+            compiler = new_compiler(verbose=1)
+            customize_compiler(compiler)
+            compiler.compile([join(obj_dir_tpnd, 'adBuffer.c')],
+                             output_dir=obj_dir_tpnd,
+                             extra_preargs=['-c', '-fPIC'])
+            compiler.compile([join(obj_dir_tpnd, 'adStack.c')],
+                             output_dir=obj_dir_tpnd,
+                             extra_preargs=['-c', '-fPIC'])
+            objdir = join(obj_dir_tpnd, obj_dir_tpnd[1:])
+            shutil.move(join(objdir, 'adBuffer.o'),
+                        join(obj_dir_tpnd, 'adBuffer.o'))
+            shutil.move(join(objdir, 'adStack.o'),
+                        join(obj_dir_tpnd, 'adStack.o'))
+    except (CompileError, LinkError):
+        hline = "*"*80
+        print(hline + "\nERROR")
+        s_out = stream.get_output()
+        print(s_out[0])
+        print(s_out[1])
+        msg = "Compilation of tapenade source failed, please check "\
+              "error messages above."
+        print(hline + "\n" + msg)
+        sys.exit(1)

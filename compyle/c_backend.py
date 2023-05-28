@@ -307,7 +307,6 @@ void scan( T* ary, long N, T initial_val${args_extra}){
         }
         delete[] stage1_res;
         delete[] stage2_res;
-        py::print(ary);
     }
 }
 '''
