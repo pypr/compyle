@@ -2,6 +2,7 @@ import unittest
 from unittest import TestCase
 from ..c_backend import CBackend, CCompile
 from ..types import annotate
+import numpy as np
 
 
 class TestCBackend(TestCase):
