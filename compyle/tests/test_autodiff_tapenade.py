@@ -47,11 +47,9 @@ def test_simple_pow():
     grad_pow = ForwardGrad(simple_pow, ['x'], ['y'])
 
     x = np.array([2])
-    y = np.empty(1)
-    xd = np.array([1])
-    yd = np.zeros(1)
-    grad_pow(x, xd, y, yd, 5)
-    assert yd[0] == 80
+    y = np.empty([1])
+    [[yfd]] = grad_pow(x, y, 5)
+    assert yfd == 80
 
     grad_pow = ReverseGrad(simple_pow, ['x'], ['y'])
 
@@ -69,10 +67,9 @@ def test_if_else():
 
     x = np.array([2])
     y = np.empty(1)
-    xd = np.array([1])
-    yd = np.zeros(1)
-    grad_pow(x, xd, y, yd, -5)
-    assert yd[0] == (-5 * (2 ** -6))
+   
+    [[yfd]] = grad_pow(x, y, -5)
+    assert yfd == (-5 * (2 ** -6))
 
     grad_pow = ReverseGrad(ifelse, ['x'], ['y'])
 
