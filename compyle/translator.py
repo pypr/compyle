@@ -13,6 +13,7 @@ from __future__ import absolute_import
 
 import ast
 import re
+from subprocess import call
 import sys
 from textwrap import dedent, wrap
 import types
@@ -163,7 +164,7 @@ class CConverter(ast.NodeVisitor):
     def _get_local_arg(self, arg, type):
         return arg, type
 
-    def _get_function_args(self, node):
+    def _get_function_args(self, node, convert_array_args=False):
         node_args = node.args.args
         if PY_VER == 2:
             args = [x.id for x in node_args]
@@ -196,8 +197,10 @@ class CConverter(ast.NodeVisitor):
             type = self._detect_type(arg, value)
             if 'LOCAL_MEM' in type:
                 arg, type = self._get_local_arg(arg, type)
-            call_sig.append('{type} {arg}'.format(type=type, arg=arg))
-
+            if convert_array_args and type.endswith('*'):
+                    call_sig.append('{type} {arg}[]'.format(type=type[:-1], arg=arg))
+            else:
+                call_sig.append('{type} {arg}'.format(type=type, arg=arg))
         return ', '.join(call_sig)
 
     def _get_variable_declaration(self, type_str, names):

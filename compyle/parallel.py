@@ -6,17 +6,21 @@ once and have it run on different execution backends.
 
 """
 
+from compyle import c_backend
 from functools import wraps
 from textwrap import wrap
 
 from mako.template import Template
 import numpy as np
+import pybind11
 
+from .cimport import Cmodule
 from .config import get_config
 from .profile import profile
 from .cython_generator import get_parallel_range, CythonGenerator
 from .transpiler import Transpiler, convert_to_float_if_needed
-from .types import dtype_to_ctype
+from .types import TYPES, annotate, dtype_to_ctype
+from .ext_module import get_md5
 
 from . import array
 
@@ -503,6 +507,52 @@ class ElementwiseBase(object):
             # FIXME: it is difficult to get the sources from pycuda.
             self.all_source = self.source
             return knl
+        elif self.backend == 'c':
+            self.pyb11_backend = c_backend.CBackend()
+            py_data, c_data = self.pyb11_backend.get_func_signature_pyb11(
+                self.func)
+            pyb11_args = ', '.join(py_data[0][1:])
+            size = '{arg}.request().size'.format(arg=c_data[1][1])
+            pyb11_call = ', '.join([size] + py_data[1][1:])
+            c_defn = ['size_t SIZE'] + c_data[0][1:]
+            arguments = ', '.join(c_defn)
+            name = self.func.__name__
+            expr = '{func}({args})'.format(
+                func=name,
+                args=', '.join(c_data[1])
+            )
+
+            openmp = self._config.use_openmp
+
+            templete_elwise = Template(c_backend.elwise_c_template)
+            src_elwise = templete_elwise.render(
+                name=self.name,
+                arguments=arguments,
+                openmp=openmp,
+                operations=expr
+            )
+
+            self.source = self.tp.get_code()
+            if openmp:
+                self.source = '#include <omp.h>\n' + self.source
+            self.all_source = self.source + '\n' + src_elwise
+            hash_fn = get_md5(self.all_source)
+            modname = f'm_{hash_fn}'
+
+            template = Template(c_backend.elwise_c_pybind)
+            src_bind = template.render(
+                name=self.name,
+                modname=modname,
+                pyb11_args=pyb11_args,
+                pyb11_call=pyb11_call
+            )
+
+            self.all_source += src_bind
+
+            mod = Cmodule(self.all_source, hash_fn, openmp=openmp,
+                          extra_inc_dir=[pybind11.get_include()])
+            module = mod.load()
+            return getattr(module, modname)
 
     def _correct_opencl_address_space(self, c_data):
         code = self.tp.blocks[-1].code.splitlines()
@@ -552,6 +602,8 @@ class ElementwiseBase(object):
             self.c_func(*c_args, **kw)
             event.record()
             event.synchronize()
+        elif self.backend == 'c':
+            self.c_func(*c_args)
 
 
 class Elementwise(object):
@@ -662,6 +714,71 @@ class ReductionBase(object):
             self.tp.compile()
             self.all_source = self.tp.source
             return getattr(self.tp.mod, 'py_' + self.name)
+        elif self.backend == 'c':
+            self.pyb11_backend = c_backend.CBackend()
+            if self.func is not None:
+                self.func.__annotations__['return'] = TYPES[self.type]
+                self.tp.add(self.func, declarations=declarations)
+                pyb_data, c_data = self.pyb11_backend.get_func_signature_pyb11(
+                    self.func)
+                c_call = c_data[1]
+
+                c_call_default = ['N', 'neutral']
+                predefined_vars = ['i'] + c_call_default
+                c_args_extra = [[], []]
+                pyb_args_extra = [[], []]
+                for i, var in enumerate(c_call[1:]):
+                    if var not in predefined_vars:
+                        c_args_extra[0].append(c_data[0][i + 1])
+                        c_args_extra[1].append(var)
+                        pyb_args_extra[0].append(pyb_data[0][i + 1])
+                        pyb_args_extra[1].append(pyb_data[1][i + 1])
+                c_args_extra_str = ", " + ', '.join(c_args_extra[0])
+                c_call_extra_str = ", " + ', '.join(c_args_extra[1])
+                pyb_args_extra_str = ", " + ', '.join(pyb_args_extra[0])
+                pyb_call_extra_str = ", " + ', '.join(pyb_args_extra[1])
+                map_expr = f"{self.func.__name__}({', '.join(c_call)})"
+            else:
+                c_args_extra_str = f", {self.type + '*'} in"
+                c_call_extra_str = ", in"
+                arg_typ = self.pyb11_backend.ctype_to_pyb11(self.type + '*')
+                pyb_args_extra_str = f", {arg_typ} in"
+                pyb_call_extra_str = f", ({self.type}*) in.request().ptr"
+                map_expr = "in[i]"
+            self.source = self.tp.get_code()
+            openmp = self._config.use_openmp
+            if openmp:
+                self.source = '#include <omp.h>\n' + self.source
+
+            template_red = Template(c_backend.reduction_c_template)
+            src_red = template_red.render(
+                args_extra=c_args_extra_str,
+                call_extra=c_call_extra_str,
+                map_expr=map_expr,
+                red_expr=self.reduce_expr,
+                name=self.name,
+                type=self.type,
+                openmp=openmp
+            )
+            self.all_source = self.source + src_red
+            hash_fn = get_md5(self.all_source)
+            modname = f'm_{hash_fn}'
+
+            template_pybind = Template(c_backend.reduction_c_pybind)
+            src_pybind = template_pybind.render(
+                name=modname,
+                type=self.type,
+                pyb_args=pyb_args_extra_str,
+                pyb_call=pyb_call_extra_str,
+                neutral=self.neutral,
+            )
+            self.all_source += src_pybind
+
+            mod = Cmodule(self.all_source, hash_fn, openmp=openmp,
+                          extra_inc_dir=[pybind11.get_include()])
+            module = mod.load()
+            return getattr(module, modname)
+
         elif self.backend == 'opencl':
             if self.func is not None:
                 self.tp.add(self.func, declarations=declarations)
@@ -815,6 +932,10 @@ class ReductionBase(object):
             event.record()
             event.synchronize()
             return result.get()
+        elif self.backend == 'c':
+            size = len(c_args[0])
+            c_args.insert(0, size)
+            return self.c_func(*c_args)
 
 
 class Reduction(object):
@@ -939,6 +1060,8 @@ class ScanBase(object):
             return self._generate_cuda_kernel(declarations=declarations)
         elif self.backend == 'cython':
             return self._generate_cython_code(declarations=declarations)
+        elif self.backend == 'c':
+            return self._generate_c_code(declarations=declarations)
 
     def _default_cython_input_function(self):
         py_data = (['int i', '{type}[:] input'.format(type=self.type)],
@@ -1051,6 +1174,114 @@ class ScanBase(object):
         self.tp.compile()
         self.all_source = self.tp.source
         return getattr(self.tp.mod, 'py_' + self.name)
+
+    def _generate_c_code(self, declarations=None):
+        self.pyb11_backend = c_backend.CBackend()
+        if not self.input_func:
+            @annotate(i='int', ary=f'{self.type}p', return_=f'{self.type}')
+            def input_expr(i, ary):
+                return ary[i]
+            self.input_func = input_expr
+
+        self.tp.add(self.input_func, declarations=declarations)
+        pyb_data_in, c_data_in = self.pyb11_backend.get_func_signature_pyb11(
+            self.input_func)
+        self.tp.add(self.output_func, declarations=declarations)
+        self.source = self.tp.get_code()
+        openmp = self._config.use_openmp
+        if openmp:
+            self.source = '#include <omp.h>\n' + self.source
+        c_call_in = c_data_in[1]
+        pyb_data_out, c_data_out = self.pyb11_backend.get_func_signature_pyb11(
+            self.output_func)
+        c_call_out = c_data_out[1]
+        c_call_default = ['ary', 'N']
+        c_internal_var = ['item', 'prev_item', 'last_item']
+        predefined_vars = c_call_default + c_internal_var
+
+        c_args_in_extra = [[], []]
+        pyb_args_in_extra = [[], []]
+        for i, var in enumerate(c_call_in[1:]):
+            if var not in predefined_vars:
+                c_args_in_extra[0].append(c_data_in[0][i + 1])
+                c_args_in_extra[1].append(var)
+                pyb_args_in_extra[0].append(pyb_data_in[0][i + 1])
+                pyb_args_in_extra[1].append(pyb_data_in[1][i + 1])
+        c_args_out_extra = [[], []]
+        pyb_args_extra = [[], []]
+        for i, var in enumerate(c_call_out[1:]):
+            if var not in predefined_vars:
+                c_args_out_extra[0].append(c_data_out[0][i + 1])
+                c_args_out_extra[1].append(var)
+                pyb_args_extra[0].append(pyb_data_out[0][i + 1])
+                pyb_args_extra[1].append(pyb_data_out[1][i + 1])
+
+        c0 = c_args_in_extra[0]
+        c1 = c_args_in_extra[1]
+        c_args_in_extra_str = f", {','.join(c0)}" if c1 else ""
+        c_call_in_extra_str = f", {','.join(c1)}" if c1 else ""
+
+        c_args_extra = c_args_out_extra.copy()
+        for i, var in enumerate(c_args_in_extra[1]):
+            if var not in c_args_extra[1]:
+                c_args_extra[0].append(c_args_in_extra[0][i])
+                c_args_extra[1].append(var)
+                pyb_args_extra[0].append(pyb_args_in_extra[0][i])
+                pyb_args_extra[1].append(pyb_args_in_extra[1][i])
+
+        if not hasattr(self.output_func, 'arg_keys'):
+            self.output_func.arg_keys = {}
+        self.output_func.arg_keys[self._get_backend_key(
+        )] = c_call_default + c_args_extra[1]
+
+        c0 = c_args_extra[0]
+        c1 = c_args_extra[1]
+        p0 = pyb_args_extra[0]
+        p1 = pyb_args_extra[1]
+        c_args_extra_str = f", {', '.join(c0)}" if c1 else ""
+        c_call_extra_str = f", {', '.join(c1)}" if c1 else ""
+        pyb_args_extra_str = f", {', '.join(p0)}" if p1 else ""
+        pyb_call_extra_str = f", {', '.join(p1)}" if p1 else ""
+
+        ip_fname = self.input_func.__name__
+        op_fname = self.output_func.__name__
+        c_call_in_str = f"{ip_fname}({', '.join(c_call_in)})"
+        c_call_out_str = f"{op_fname}({', '.join(c_call_out)})"
+
+        template_scan = Template(c_backend.scan_c_template)
+        src_scan = template_scan.render(
+            scan_expr=self.scan_expr,
+            scan_input_expr_call=c_call_in_str,
+            scan_output_expr_call=c_call_out_str,
+            args_extra=c_args_extra_str,
+            args_in_extra=c_args_in_extra_str,
+            call_extra=c_call_extra_str,
+            call_in_extra=c_call_in_extra_str,
+            name=self.name,
+            type=self.type,
+            pyb_args=pyb_args_extra_str,
+            pyb_call=pyb_call_extra_str,
+            openmp=openmp
+        )
+        self.all_source = self.source + src_scan
+        hash_fn = get_md5(self.all_source)
+        modname = f'm_{hash_fn}'
+
+        pybind_template = Template(c_backend.scan_c_pybind)
+        src_pybind = pybind_template.render(
+            name=modname,
+            type=self.type,
+            pyb_args=pyb_args_extra_str,
+            pyb_call=pyb_call_extra_str,
+            neutral=self.neutral
+        )
+
+        self.all_source += src_pybind
+
+        mod = Cmodule(self.all_source, hash_fn, openmp=openmp,
+                      extra_inc_dir=[pybind11.get_include()])
+        module = mod.load()
+        return getattr(module, modname)
 
     def _wrap_ocl_function(self, func, func_type=None, declarations=None):
         if func is not None:
@@ -1234,6 +1465,10 @@ class ScanBase(object):
             self.c_func(*[c_args_dict[k] for k in output_arg_keys])
             event.record()
             event.synchronize()
+        elif self.backend == 'c':
+            size = len(c_args_dict[output_arg_keys[0]])
+            c_args_dict['N'] = size
+            self.c_func(*[c_args_dict[k] for k in output_arg_keys])
 
 
 class Scan(object):
