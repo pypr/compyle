@@ -19,7 +19,7 @@ def get_version():
     return data.get('__version__')
 
 
-install_requires = ['mako', 'pytools', 'cython', 'numpy']
+install_requires = ['mako', 'pytools', 'numpy']
 tests_require = ['pytest']
 if sys.version_info[0] < 3:
     tests_require += ['mock>=1.0']
