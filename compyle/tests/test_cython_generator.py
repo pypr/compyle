@@ -498,7 +498,7 @@ class TestCythonCodeGenerator(TestBase):
                 for key, value in kwargs.items():
                     setattr(self, key, value)
 
-            cdef inline void func(self, long d_idx, double* d_x) nogil:
+            cdef inline void func(self, long d_idx, double* d_x) noexcept nogil:
                 cdef double tmp
                 tmp = abs(self.rho*self.c)*sin(pi*self.c)
                 d_x[d_idx] = d_x[d_idx]*tmp

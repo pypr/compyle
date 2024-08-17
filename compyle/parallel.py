@@ -755,7 +755,7 @@ class ReductionBase(object):
     def _correct_return_type(self, c_data):
         code = self.tp.blocks[-1].code.splitlines()
         if self._config.use_openmp:
-            gil = " nogil"
+            gil = " noexcept nogil"
         else:
             gil = ""
         code[0] = "cdef inline {type} {name}({args}){gil}:".format(
@@ -904,7 +904,7 @@ class ScanBase(object):
     def _correct_return_type(self, c_data, modifier):
         code = self.tp.blocks[-1].code.splitlines()
         if self._config.use_openmp:
-            gil = " nogil"
+            gil = " noexcept nogil"
         else:
             gil = ""
         code[0] = "cdef inline {type} {name}_{modifier}({args}){gil}:".format(
