@@ -274,9 +274,14 @@ def test_sort_by_keys(backend):
     out_array1, out_array2 = array.sort_by_keys([dev_array1, dev_array2])
 
     # Then
-    order = np.argsort(nparr1)
+    if backend == 'opencl': # opencl backend => radix sort which is stable
+        order = np.argsort(nparr1, stable=True)
+    else:
+        order = np.argsort(nparr1)
     act_result1 = np.take(nparr1, order)
     act_result2 = np.take(nparr2, order)
+
+    # find positions of duplicate values in the sorted array
     assert np.all(out_array1.get() == act_result1)
     assert np.all(out_array2.get() == act_result2)
 
@@ -295,7 +300,7 @@ def test_radix_sort_by_keys():
                                                     use_radix_sort=True)
 
         # Then
-        order = np.argsort(nparr1)
+        order = np.argsort(nparr1, stable=True)
         act_result1 = np.take(nparr1, order)
         act_result2 = np.take(nparr2, order)
         assert np.all(out_array1.get() == act_result1)
@@ -322,7 +327,10 @@ def test_sort_by_keys_with_output(backend):
                        out_list=out_arrays, use_radix_sort=False)
 
     # Then
-    order = np.argsort(nparr1)
+    if backend == 'opencl': # opencl backend => radix sort which is stable
+        order = np.argsort(nparr1, stable=True)
+    else:
+        order = np.argsort(nparr1)
     act_result1 = np.take(nparr1, order)
     act_result2 = np.take(nparr2, order)
     assert np.all(out_arrays[0].get() == act_result1)
