@@ -164,8 +164,6 @@ class ExtModule(object):
             yield
         finally:
             self.lck.release()
-            if exists(self.lock_path):
-                os.remove(self.lock_path)
 
     def _write_source(self, path):
         if not exists(path):
