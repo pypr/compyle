@@ -29,10 +29,10 @@ def set_context(ctx):
 def get_queue():
     global _queue
     if _queue is None:
-        properties = None
+        kwargs = dict()
         if get_config().profile:
-            properties = cl.command_queue_properties.PROFILING_ENABLE
-        _queue = cl.CommandQueue(get_context(), properties=properties)
+            kwargs['properties'] = cl.command_queue_properties.PROFILING_ENABLE
+        _queue = cl.CommandQueue(get_context(), **kwargs)
     return _queue
 
 

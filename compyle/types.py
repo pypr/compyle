@@ -188,6 +188,7 @@ if sys.platform.startswith('win') or BITS.startswith('32bit'):
     NP_C_TYPE_MAP[np.dtype(np.uint64)] = 'unsigned long long'
     C_NP_TYPE_MAP['long long'] = np.int64
     C_NP_TYPE_MAP['unsigned long long'] = np.uint64
+    TYPES['long long'] = KnownType('long long')
     TYPES['glonglongp'] = KnownType('GLOBAL_MEM long long*', 'long long')
     TYPES['gulonglongp'] = KnownType('GLOBAL_MEM unsigned long long*',
                                      'unsigned long long')

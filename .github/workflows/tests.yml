@@ -12,9 +12,10 @@ on:
 jobs:
   tests:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: [3.8, 3.9]
+        python-version: [3.11, 3.12]
 
     runs-on: ${{ matrix.os }}
     defaults:
@@ -22,9 +23,9 @@ jobs:
         shell: bash -l {0}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
-        uses: conda-incubator/setup-miniconda@v2
+        uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
@@ -35,6 +36,20 @@ jobs:
           conda install -c conda-forge pocl pyopencl
           python -c 'import pyopencl as cl'
         if: ${{ runner.os != 'Windows' }}
+      - name: Setup compyle config on MacOS to use openmp enabled clang from homebrew
+        run: |
+          brew install libomp
+          mkdir -p ~/.compyle
+          touch ~/.compyle/config.py
+          echo "import os" >> ~/.compyle/config.py
+          echo "os.environ['CC'] = '$(brew --prefix llvm@15)/bin/clang'" >> ~/.compyle/config.py
+          echo "os.environ['CXX'] = '$(brew --prefix llvm@15)/bin/clang++'" >> ~/.compyle/config.py
+          export CPPFLAGS="-I$(brew --prefix libomp)/include -I$(brew --prefix llvm@15)/include -Xclang -fopenmp"
+          export LDFLAGS="-L$(brew --prefix libomp)/lib -L$(brew --prefix llvm@15)/lib -lomp"
+          python -c "import os; OMP_CFLAGS=os.environ.get('CPPFLAGS').split(' '); print(f'{OMP_CFLAGS=}')" >> ~/.compyle/config.py
+          python -c "import os; OMP_LINK=os.environ.get('LDFLAGS').split(' '); print(f'{OMP_LINK=}')" >> ~/.compyle/config.py
+          cat ~/.compyle/config.py
+        if: ${{ runner.os == 'macOS' }}
       - name: Install dependencies
         run: |
           conda info
@@ -46,9 +61,9 @@ jobs:
       # Thanks https://stackoverflow.com/a/60942437
       - name: Get month to use as cache key.
         id: month
-        run: echo "::set-output name=month::$(date +'%m')"
+        run: echo "month==$(date +'%m')" >> $GITHUB_OUTPUT
       - name: Deal with auto-generated code cache
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             ~/.compyle
@@ -61,6 +76,6 @@ jobs:
         if: ${{ success() }}
         run: coverage report
       - name: Upload Coverage to Codecov
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v4
         with:
           env_vars: ${{ matrix.os }}, ${{ matrix.python-version }}
