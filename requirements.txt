@@ -2,4 +2,5 @@ mako
 pytools
 cython
 numpy
+fasteners
 pytest

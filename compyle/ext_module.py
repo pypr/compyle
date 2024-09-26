@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from distutils.sysconfig import get_config_vars
 from distutils.util import get_platform
 from distutils.errors import CompileError, LinkError
+from fasteners import InterProcessLock
 import hashlib
 import importlib
 import io
@@ -14,7 +15,6 @@ import platform
 from pyximport import pyxbuild
 import shutil
 import sys
-import time
 
 # Conditional/Optional imports.
 if sys.platform == 'win32':
@@ -143,6 +143,7 @@ class ExtModule(object):
             extra_compile_args if extra_compile_args else []
         )
         self.extra_link_args = extra_link_args if extra_link_args else []
+        self.lck = InterProcessLock(self.lock_path)
 
     def _add_local_include(self):
         if 'bsd' in platform.system().lower():
@@ -158,32 +159,13 @@ class ExtModule(object):
 
     @contextmanager
     def _lock(self, timeout=90):
-        t1 = time.time()
-
-        def _is_timed_out():
-            if timeout is None:
-                return False
-            else:
-                return (time.time() - t1) > timeout
-
-        def _try_to_lock():
-            if not exists(self.lock_path):
-                try:
-                    os.mkdir(self.lock_path)
-                except OSError:
-                    return False
-                else:
-                    return True
-            return False
-
-        while not _try_to_lock():
-            time.sleep(0.1)
-            if _is_timed_out():
-                break
+        self.lck.acquire(timeout)
         try:
             yield
         finally:
-            os.rmdir(self.lock_path)
+            self.lck.release()
+            if exists(self.lock_path):
+                os.remove(self.lock_path)
 
     def _write_source(self, path):
         if not exists(path):
