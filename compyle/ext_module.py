@@ -59,8 +59,10 @@ CONFIG_OPTS = get_config_file_opts()
 
 
 def get_platform_dir():
+    v = sys.version_info
+    version = '%s.%s' % (v.major, v.minor)
     return 'py{version}-{platform_dir}'.format(
-        version=sys.version[:3], platform_dir=get_platform()
+        version=version, platform_dir=get_platform()
     )
 
 
