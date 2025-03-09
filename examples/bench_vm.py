@@ -31,7 +31,7 @@ def compare(m=5):
     # Warm up the jit to prevent the timing from going off for the first point.
     VN.velocity(*VN.make_vortices(100))
     N = np.array([10, 50, 100, 200, 500, 1000, 2000, 4000, 6000,
-                  8000, 10000, 12000])
+                  8000, 10000, 15000, 20000])
     backends = [(VN, '', False), (VE, 'cython', False), (VE, 'cython', True),
                 (VE, 'opencl', False), (VK, 'opencl', False)]
     timing = []
@@ -45,7 +45,7 @@ def compare(m=5):
                 start = time.time()
                 e(*args)
                 t.append(time.time() - start)
-            times.append(np.average(t))
+            times.append(np.min(t))
         timing.append(times)
 
     return N, np.array(timing)
@@ -61,7 +61,20 @@ def plot_timing(n, timing):
     plt.xlabel('N')
     plt.ylabel('Speedup')
     plt.legend()
+    plt.figure()
+    gflop = 10*n*n/1e9
+    plt.plot(n, gflop/timing[0], label='numba', marker='+')
+    plt.plot(n, gflop/timing[1], label='Cython', marker='+')
+    plt.plot(n, gflop/timing[2], label='OpenMP', marker='+')
+    plt.plot(n, gflop/timing[3], label='OpenCL', marker='+')
+    plt.plot(n, gflop/timing[4], label='OpenCL Local', marker='+')
+    plt.grid()
+    plt.xlabel('N')
+    plt.ylabel('GFLOPS')
+    plt.legend()
     plt.show()
+    best = timing[:, -1].min()
+    print("Fastest time for n=", n[-1], best, "secs")
 
 
 if __name__ == '__main__':
