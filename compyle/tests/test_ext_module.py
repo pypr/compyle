@@ -208,6 +208,10 @@ class TestExtModule(TestCase):
             self.assertTrue(s.should_recompile())
 
     def test_that_multiple_writes_do_not_occur_for_same_source(self):
+        if (sys.platform.startswith("win32") and
+           sys.version_info[:2] == (3, 11)):
+            raise SkipTest('Fails on Python 3.11')
+
         # Given
         n_proc = 5
         p = Pool(n_proc)
@@ -225,9 +229,6 @@ class TestExtModule(TestCase):
         self.assertEqual(sum(result), 1)
 
     def test_that_multiple_compiles_do_not_occur_for_same_source(self):
-        if (sys.platform.startswith("win32") and
-           sys.version_info[:2] == (3, 11)):
-            raise SkipTest('Fails on Python 3.11')
         # Given
         n_proc = 5
         p = Pool(n_proc)
