@@ -93,8 +93,6 @@ class ParallelUtilsBase(object):
         self._test_scan(backend='cython')
 
     def test_scan_works_cython_parallel(self):
-        if sys.platform == 'darwin' and sys.version_info[:2] == (3, 11):
-            skip('Strange failure on MacOS Python 3.11.')
         with use_config(use_openmp=True):
             self._test_scan(backend='cython')
 
@@ -134,9 +132,6 @@ class ParallelUtilsBase(object):
         self._test_unique_scan(backend='cython')
 
     def test_unique_scan_cython_parallel(self):
-        if sys.platform == 'darwin' and sys.version_info[:2] == (3, 11):
-            skip('Strange failure on MacOS Python 3.11.')
-
         with use_config(use_openmp=True):
             self._test_unique_scan(backend='cython')
 
@@ -161,8 +156,6 @@ class ParallelUtilsBase(object):
         self._test_segmented_scan(backend='cython')
 
     def test_segmented_scan_cython_parallel(self):
-        if sys.platform == 'darwin' and sys.version_info[:2] == (3, 11):
-            skip('Strange failure on MacOS Python 3.11.')
         with use_config(use_openmp=True):
             self._test_segmented_scan(backend='cython')
 
@@ -175,8 +168,6 @@ class ParallelUtilsBase(object):
         self._test_segmented_scan(backend='cuda')
 
     def test_scan_last_item_cython_parallel(self):
-        if sys.platform == 'darwin' and sys.version_info[:2] == (3, 11):
-            skip('Strange failure on MacOS Python 3.11.')
         with use_config(use_openmp=True):
             self._test_scan_last_item(backend='cython')
 
