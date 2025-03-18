@@ -1,5 +1,3 @@
-import sys
-
 import pytest
 import numpy as np
 
@@ -290,8 +288,6 @@ def test_sort_by_keys(backend):
 
 def test_radix_sort_by_keys():
     backend = 'cython'
-    if sys.platform == 'darwin' and sys.version_info[:2] == (3, 11):
-        pytest.skip('Strange failure on MacOS Python 3.11.')
     for use_openmp in [True, False]:
         get_config().use_openmp = use_openmp
         # Given
