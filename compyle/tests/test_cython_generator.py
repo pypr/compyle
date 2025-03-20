@@ -442,7 +442,7 @@ class TestCythonCodeGenerator(TestBase):
 
         # Then
         expect = dedent('''
-        cdef inline float annotated_f(int i, float* y):
+        cdef inline float annotated_f(int i, float* y) noexcept:
             cdef unsigned int x[64]
             return y[i]
         ''')
@@ -457,7 +457,7 @@ class TestCythonCodeGenerator(TestBase):
         # When
         cg.parse(py3_f)
         expect = dedent('''
-        cdef inline int py3_f(int x):
+        cdef inline int py3_f(int x) noexcept:
             cdef int y
             y = x + 1
             return x*y
@@ -476,7 +476,7 @@ class TestCythonCodeGenerator(TestBase):
                 for key, value in kwargs.items():
                     setattr(self, key, value)
 
-            cdef inline void func(self, long d_idx, double* d_x):
+            cdef inline void func(self, long d_idx, double* d_x) noexcept:
                 cdef double tmp
                 tmp = abs(self.rho*self.c)*sin(pi*self.c)
                 d_x[d_idx] = d_x[d_idx]*tmp
@@ -517,7 +517,7 @@ class TestCythonCodeGenerator(TestBase):
                 for key, value in kwargs.items():
                     setattr(self, key, value)
 
-            cdef inline void func(self, long d_idx, double* d_x):
+            cdef inline void func(self, long d_idx, double* d_x) noexcept:
                 cdef double tmp
                 tmp = abs(self.rho*self.c)*sin(pi*self.c)
                 d_x[d_idx] = d_x[d_idx]*tmp
@@ -537,7 +537,7 @@ class TestCythonCodeGenerator(TestBase):
                 for key, value in kwargs.items():
                     setattr(self, key, value)
 
-            cdef inline double func(self, long d_idx, double* d_x):
+            cdef inline double func(self, long d_idx, double* d_x) noexcept:
                 return d_x[d_idx]
 
             cpdef double py_func(self, long d_idx, double[:] d_x):
@@ -547,7 +547,7 @@ class TestCythonCodeGenerator(TestBase):
 
         cg.parse(func_with_return)
         expect = dedent("""
-        cdef inline double func_with_return(long d_idx, double* d_x, double x):
+        cdef inline double func_with_return(long d_idx, double* d_x, double x) noexcept:
             x += 1
             return d_x[d_idx] + x
 
@@ -568,7 +568,7 @@ class TestCythonCodeGenerator(TestBase):
                 for key, value in kwargs.items():
                     setattr(self, key, value)
 
-            cdef inline double func(self, long d_idx, double* d_x):
+            cdef inline double func(self, long d_idx, double* d_x) noexcept:
                 return d_x[d_idx]
         """)
         self.assert_code_equal(cg.get_code().strip(), expect.strip())
@@ -582,7 +582,7 @@ class TestCythonCodeGenerator(TestBase):
                 for key, value in kwargs.items():
                     setattr(self, key, value)
 
-            cdef inline void func(self, long d_idx, double* d_x):
+            cdef inline void func(self, long d_idx, double* d_x) noexcept:
                 cdef double mat[2][2]
                 mat[0][0] = d_x[d_idx]
                 cdef float vec[3], vec1[3]
@@ -599,7 +599,7 @@ class TestCythonCodeGenerator(TestBase):
                 for key, value in kwargs.items():
                     setattr(self, key, value)
 
-            cdef inline void func(self, long d_idx, double* d_x):
+            cdef inline void func(self, long d_idx, double* d_x) noexcept:
                 cdef float val, val1
                 # val1 = declare('double')
                 val = d_x[d_idx]
@@ -622,7 +622,7 @@ class TestCythonCodeGenerator(TestBase):
                 for key, value in kwargs.items():
                     setattr(self, key, value)
 
-            cdef inline void some_func(self, long d_idx, double* d_p, double WIJ, double* DWIJ, ndarray user, long* d_user, int* s_user):
+            cdef inline void some_func(self, long d_idx, double* d_p, double WIJ, double* DWIJ, ndarray user, long* d_user, int* s_user) noexcept:
                 d_p[d_idx] = WIJ*DWIJ[0]
         """)
         self.assert_code_equal(cg.get_code().strip(), expect.strip())
@@ -631,7 +631,7 @@ class TestCythonCodeGenerator(TestBase):
         cg = CythonGenerator()
         cg.parse(func_with_return)
         expect = dedent("""
-        cdef inline double func_with_return(long d_idx, double* d_x, double x):
+        cdef inline double func_with_return(long d_idx, double* d_x, double x) noexcept:
             x += 1
             return d_x[d_idx] + x
         """)
@@ -639,7 +639,7 @@ class TestCythonCodeGenerator(TestBase):
 
         cg.parse(simple_func)
         expect = dedent("""
-        cdef inline void simple_func(long d_idx, double* d_x, double x):
+        cdef inline void simple_func(long d_idx, double* d_x, double x) noexcept:
             d_x[d_idx] += x
         """)
         self.assert_code_equal(cg.get_code().strip(), expect.strip())
