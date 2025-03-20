@@ -448,10 +448,10 @@ class CythonGenerator(object):
         c_arg_def = ', '.join(c_args)
         if self._config.use_openmp:
             ignore = ['reduce', 'converged']
-            gil = " noexcept nogil" if name not in ignore else ""
+            gil = " nogil" if name not in ignore else ""
         else:
             gil = ""
-        cdefn = 'cdef inline {ret} {name}({arg_def}){gil}:'.format(
+        cdefn = 'cdef inline {ret} {name}({arg_def}) noexcept{gil}:'.format(
             ret=c_ret, name=name, arg_def=c_arg_def, gil=gil
         )
 
