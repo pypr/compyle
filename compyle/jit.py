@@ -5,7 +5,7 @@ import inspect
 import ast
 import importlib
 import warnings
-import time
+import json
 from pytools import memoize
 from .config import get_config
 from .cython_generator import CythonGenerator
@@ -368,6 +368,8 @@ class ElementwiseJIT(parallel.ElementwiseBase):
             c_func(*c_args, **kw)
             event.record()
             event.synchronize()
+        elif self.backend == 'c':
+            c_func(*c_args)
 
 
 class ReductionJIT(parallel.ReductionBase):
@@ -448,6 +450,10 @@ class ReductionJIT(parallel.ReductionBase):
             event.record()
             event.synchronize()
             return result.get()
+        elif self.backend == 'c':
+            size = len(c_args[0])
+            c_args.insert(0, size)
+            return c_func(*c_args)
 
 
 class ScanJIT(parallel.ScanBase):
@@ -567,3 +573,7 @@ class ScanJIT(parallel.ScanBase):
             c_func(*[c_args_dict[k] for k in output_arg_keys])
             event.record()
             event.synchronize()
+        elif self.backend == 'c':
+            size = len(c_args_dict[output_arg_keys[0]])
+            c_args_dict['N'] = size
+            c_func(*[c_args_dict[k] for k in output_arg_keys])

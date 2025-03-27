@@ -1,11 +1,10 @@
 import numpy as np
 import math
 import mako.template as mkt
-import time
 from pytools import memoize, memoize_method
 
 from .config import get_config
-from .types import (annotate, dtype_to_ctype, ctype_to_dtype, declare,
+from .types import (annotate, dtype_to_ctype, declare,
                     dtype_to_knowntype, knowntype_to_ctype)
 from .template import Template
 from .sort import radix_sort
@@ -394,7 +393,6 @@ def linspace(start, stop, num, dtype=np.float64, backend='opencl',
         out = out * delta+start
     elif backend == 'cuda':
         import pycuda.gpuarray as gpuarray
-        import pycuda.autoinit
         if endpoint:
             delta = (stop-start)/(num-1)
         else:
@@ -445,7 +443,6 @@ def diff(a, n, backend=None):
         backend = a.backend
 
     if backend == 'opencl' or backend == 'cuda':
-        from compyle.api import Elementwise
         binom_coeff = np.zeros(n+1)
         sign_fac = 1 if (n % 2 == 0) else -1
         for i in range(n+1):
@@ -525,6 +522,7 @@ def trapz(y, x=None, dx=1.0, backend=None):
         sum_ar = (y[:-1] + y[1:])
         out = dot(d, sum_ar) * 0.5
     return out
+
 
 @annotate
 def where_elwise(i, condition, x, y,  ans):
@@ -872,7 +870,6 @@ def comparison_kernel(func, backend, ary_type, other_type):
 def comparison_template(func, other, arr, backend=None):
     if backend is None:
         backend = arr.backend
-    from compyle.parallel import Elementwise
     other_type = dtype_to_ctype(type(other))
     ary_type = dtype_to_ctype(arr.dtype) + 'p'
     ans = empty(arr.length, dtype=np.int32, backend=arr.backend)
@@ -1023,7 +1020,7 @@ class Array(object):
             return cu_bufint(self._data, nbytes, int(offset))
 
     def get(self):
-        if self.backend == 'cython':
+        if self.backend == 'cython' or self.backend == 'c':
             return self.dev
         elif self.backend == 'opencl' or self.backend == 'cuda':
             return self.dev.get()
