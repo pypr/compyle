@@ -30,6 +30,24 @@ from .utils import getsource
 PY_VER = sys.version_info.major
 
 
+def literal_to_float(value, use_double=False):
+    """Convert numerical value to a string in 32 bit floating point notation.
+    """
+    if isinstance(value, float) and not use_double:
+        vs = str(value)
+        if 'e' in vs:
+            e_idx = vs.find('e')
+            mantissa = vs[:e_idx]
+            if '.' not in mantissa:
+                return mantissa + '.0f' + vs[(e_idx + 1):]
+            else:
+                return vs.replace('e', 'f')
+        else:
+            return vs + 'f'
+    else:
+        return str(value)
+
+
 def detect_type(name, value):
     if isinstance(value, KnownType):
         return value.type
@@ -122,6 +140,7 @@ class CStructHelper(object):
 
 class CConverter(ast.NodeVisitor):
     def __init__(self, detect_type=detect_type, known_types=None):
+        self._use_double = get_config().use_double
         self._declares = {}
         self._known = set((
             'M_E', 'M_LOG2E', 'M_LOG10E', 'M_LN2', 'M_LN10',
@@ -679,7 +698,7 @@ class CConverter(ast.NodeVisitor):
         return '!='
 
     def visit_Num(self, node):
-        return str(node.n)
+        return literal_to_float(node.n, self._use_double)
 
     def visit_Or(self, node):
         return '||'

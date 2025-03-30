@@ -8,7 +8,7 @@ from mako.template import Template
 from .config import get_config
 from .ast_utils import get_unknown_names_and_calls
 from .cython_generator import CythonGenerator, CodeGenerationError
-from .translator import OpenCLConverter, CUDAConverter
+from .translator import OpenCLConverter, CUDAConverter, literal_to_float
 from .ext_module import ExtModule
 from .extern import Extern, get_extern_code
 from .utils import getsourcelines
@@ -136,6 +136,8 @@ class Transpiler(object):
         self.backend = backend
         self.blocks = []
         self.mod = None
+        self._use_double = get_config().use_double
+
         # This attribute will store the generated and compiled source for
         # debugging.
         self.source = ''
@@ -170,11 +172,11 @@ class Transpiler(object):
 
             #ifdef __APPLE__
             #ifndef M_PI
-            #define M_PI 3.14159265358979323846
+            #define M_PI 3.14159265358979323846{fp32}
             #endif
             #endif
 
-            ''')
+            '''.format(fp32='' if self._use_double else 'f'))
         elif backend == 'cuda':
             from pycuda._cluda import CLUDA_PREAMBLE
             self._cgen = CUDAConverter()
@@ -214,7 +216,7 @@ class Transpiler(object):
             )
         elif self.backend == 'opencl' or self.backend == 'cuda':
             return '#define {name} {value}'.format(
-                name=name, value=value
+                name=name, value=literal_to_float(value, self._use_double)
             )
 
     def _get_comment(self):
