@@ -274,7 +274,8 @@ def test_sort_by_keys(backend):
     out_array1, out_array2 = array.sort_by_keys([dev_array1, dev_array2])
 
     # Then
-    if backend == 'opencl': # opencl backend => radix sort which is stable
+    if backend in ['opencl', 'cuda']:
+        # opencl/cuda backend radix sort is stable
         order = np.argsort(nparr1, stable=True)
     else:
         order = np.argsort(nparr1)

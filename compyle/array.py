@@ -312,7 +312,7 @@ def ones(n, dtype, backend='cython'):
         out = 1 + gpuarray.zeros(get_queue(), n, dtype)
     elif backend == 'cuda':
         import pycuda.gpuarray as gpuarray
-        out = np.array(1, dtype=dtype) + gpuarray.zeros(n, dtype)
+        out = 1 + gpuarray.zeros(n, dtype)
     else:
         out = np.ones(n, dtype=dtype)
     return wrap_array(out, backend)
