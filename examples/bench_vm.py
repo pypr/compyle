@@ -62,7 +62,7 @@ def plot_timing(n, timing):
     plt.ylabel('Speedup')
     plt.legend()
     plt.figure()
-    gflop = 10*n*n/1e9
+    gflop = 12*n*n/1e9
     plt.plot(n, gflop/timing[0], label='numba', marker='+')
     plt.plot(n, gflop/timing[1], label='Cython', marker='+')
     plt.plot(n, gflop/timing[2], label='OpenMP', marker='+')

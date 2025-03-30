@@ -4,6 +4,7 @@ import time
 
 from compyle.config import get_config
 from compyle.api import declare, annotate
+from compyle.low_level import cast
 from compyle.parallel import Elementwise
 from compyle.array import wrap
 
@@ -13,11 +14,14 @@ def point_vortex(xi, yi, xj, yj, gamma, result):
     xij = xi - xj
     yij = yi - yj
     r2ij = xij*xij + yij*yij
-    if r2ij < 1e-14:
+    EPS = cast(1.0e-14, "float")
+    two = cast(2.0, "float")
+    mypi = cast(pi, "float")
+    if r2ij < EPS:
         result[0] = 0.0
         result[1] = 0.0
     else:
-        tmp = gamma/(2.0*pi*r2ij)
+        tmp = gamma/(two*mypi*r2ij)
         result[0] = -tmp*yij
         result[1] = tmp*xij
 
@@ -26,14 +30,16 @@ def point_vortex(xi, yi, xj, yj, gamma, result):
 def velocity(i, x, y, gamma, u, v, nv):
     j = declare('int')
     tmp = declare('matrix(2)')
+    vx = 0.0
+    vy = 0.0
     xi = x[i]
     yi = y[i]
-    u[i] = 0.0
-    v[i] = 0.0
     for j in range(nv):
         point_vortex(xi, yi, x[j], y[j], gamma[j], tmp)
-        u[i] += tmp[0]
-        v[i] += tmp[1]
+        vx += tmp[0]
+        vy += tmp[1]
+    u[i] = vx
+    v[i] = vy
 
 
 def make_vortices(nv, backend):
