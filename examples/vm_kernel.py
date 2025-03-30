@@ -11,8 +11,8 @@ import numpy as np
 from math import pi
 import time
 
-from compyle.api import annotate, declare, get_config, wrap
-from compyle.low_level import (Kernel, LocalMem, local_barrier, cast,
+from compyle.api import annotate, declare, wrap
+from compyle.low_level import (Kernel, LocalMem, local_barrier,
                                LID_0, LDIM_0, GDIM_0)
 
 
@@ -21,14 +21,11 @@ def point_vortex(xi, yi, xj, yj, gamma, result):
     xij = xi - xj
     yij = yi - yj
     r2ij = xij*xij + yij*yij
-    EPS = cast(1.0e-14, "float")
-    two = cast(2.0, "float")
-    mypi = cast(pi, "float")
-    if r2ij < EPS:
+    if r2ij < 1.0e-14:
         result[0] = 0.0
         result[1] = 0.0
     else:
-        tmp = gamma/(two*mypi*r2ij)
+        tmp = gamma/(2.0*pi*r2ij)
         result[0] = -tmp*yij
         result[1] = tmp*xij
 
