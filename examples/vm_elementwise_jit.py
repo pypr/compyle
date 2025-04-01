@@ -2,7 +2,6 @@ import numpy as np
 from math import pi
 import time
 
-from compyle.config import get_config
 from compyle.api import declare, annotate
 from compyle.parallel import Elementwise
 from compyle.array import wrap
@@ -13,7 +12,7 @@ def point_vortex(xi, yi, xj, yj, gamma, result):
     xij = xi - xj
     yij = yi - yj
     r2ij = xij*xij + yij*yij
-    if r2ij < 1e-14:
+    if r2ij < 1.0e-14:
         result[0] = 0.0
         result[1] = 0.0
     else:
@@ -27,12 +26,16 @@ def velocity(i, x, y, gamma, u, v, nv):
     tmp = declare('matrix(2)')
     xi = x[i]
     yi = y[i]
+    vx = 0.0
+    vy = 0.0
     u[i] = 0.0
     v[i] = 0.0
     for j in range(nv):
         point_vortex(xi, yi, x[j], y[j], gamma[j], tmp)
-        u[i] += tmp[0]
-        v[i] += tmp[1]
+        vx += tmp[0]
+        vy += tmp[1]
+    u[i] = vx
+    v[i] = vy
 
 
 def make_vortices(nv, backend):

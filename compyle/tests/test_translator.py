@@ -3,11 +3,11 @@ import pytest
 import numpy as np
 import sys
 
-from ..config import get_config
+from ..config import get_config, use_config
 from ..types import annotate, declare
 from ..translator import (
     CConverter, CodeGenerationError, CStructHelper, KnownType,
-    OpenCLConverter, CUDAConverter, py2c
+    OpenCLConverter, CUDAConverter, literal_to_float, py2c
 )
 
 
@@ -17,22 +17,50 @@ def annotated_f(i, y):
     return y[i]
 
 
+def test_literal_to_float():
+    # Given/When/Then
+    assert literal_to_float(1.0) == '1.0f'
+    assert literal_to_float(1.01325e5) == '101325.0f'
+    assert literal_to_float(1.01325e-5) == '1.01325f-05'
+    assert literal_to_float(1.01325E5) == '101325.0f'
+    assert literal_to_float(1.01325e-05) == '1.01325f-05'
+    assert literal_to_float(1.0e-5) == '1.0f-05'
+    assert literal_to_float(1.0, use_double=True) == '1.0'
+    assert literal_to_float(10, use_double=True) == '10'
+    assert literal_to_float(1.01325e5, use_double=True) == '101325.0'
+    assert literal_to_float(1.01325e-5, use_double=True) == '1.01325e-05'
+
+
 def test_simple_assignment_expression():
     # Given
     src = dedent('''
     b = (2*a + 1)*(-a/1.5)%2
     ''')
 
-    # When
-    code = py2c(src)
+    with use_config(use_double=True):
+        # When
+        code = py2c(src)
 
-    # Then
-    expect = dedent('''
-    double a;
-    double b;
-    b = ((((2 * a) + 1) * (-a / 1.5)) % 2);
-    ''')
-    assert code == expect.strip()
+        # Then
+        expect = dedent('''
+        double a;
+        double b;
+        b = ((((2 * a) + 1) * (-a / 1.5)) % 2);
+        ''')
+        assert code == expect.strip()
+
+    # Given
+    with use_config(use_double=False):
+        # When
+        code = py2c(src)
+
+        # Then
+        expect = dedent('''
+        double a;
+        double b;
+        b = ((((2 * a) + 1) * (-a / 1.5f)) % 2);
+        ''')
+        assert code == expect.strip()
 
 
 def test_multiple_assignment_expressions():
@@ -49,10 +77,23 @@ def test_multiple_assignment_expressions():
     expect = dedent('''
     double a;
     double b;
-    a = 21.5;
-    b = ((((2 * a) + 1) * (a / 1.5)) % 2);
+    a = 21.5f;
+    b = ((((2 * a) + 1) * (a / 1.5f)) % 2);
     ''')
     assert code == expect.strip()
+
+    with use_config(use_double=True):
+        # When
+        code = py2c(src)
+
+        # Then
+        expect = dedent('''
+        double a;
+        double b;
+        a = 21.5;
+        b = ((((2 * a) + 1) * (a / 1.5)) % 2);
+        ''')
+        assert code == expect.strip()
 
 
 def test_if_block():
@@ -74,7 +115,7 @@ def test_if_block():
     expect = dedent('''
     double a;
     double b;
-    a = 21.5;
+    a = 21.5f;
     if ((a > 20)) {
         b = (a - 1);
     }
@@ -154,17 +195,31 @@ def test_ternary_operator():
     x = 1.0 if y >= 2.0 else 0.0
     ''')
 
-    # When
-    code = py2c(src)
+    with use_config(use_double=True):
+        # When
+        code = py2c(src)
 
-    # Then
-    expect = dedent('''
-    double x;
-    double y;
-    y = 2.0;
-    x = (y >= 2.0) ? 1.0 : 0.0;
-    ''')
-    assert code.strip() == expect.strip()
+        # Then
+        expect = dedent('''
+        double x;
+        double y;
+        y = 2.0;
+        x = (y >= 2.0) ? 1.0 : 0.0;
+        ''')
+        assert code.strip() == expect.strip()
+
+    with use_config(use_double=False):
+        # When
+        code = py2c(src)
+
+        # Then
+        expect = dedent('''
+        double x;
+        double y;
+        y = 2.0f;
+        x = (y >= 2.0f) ? 1.0f : 0.0f;
+        ''')
+        assert code.strip() == expect.strip()
 
 
 def test_multiple_boolops():
@@ -223,7 +278,7 @@ def test_power():
     # Then
     expect = dedent('''
     double x;
-    (1.5 * pow(x, 2));
+    (1.5f * pow(x, 2));
     ''')
     assert code.strip() == expect.strip()
 
@@ -251,7 +306,7 @@ def test_calling_function():
 
     # Then
     expect = dedent('''
-    sin((23.2 + 1));
+    sin((23.2f + 1));
     ''')
     assert code == expect.strip()
 
@@ -267,7 +322,7 @@ def test_calling_printf_with_string():
 
     # Then
     expect = dedent('''
-    printf("%s %d %f\n", "hello", 1, 2.0);
+    printf("%s %d %f\n", "hello", 1, 2.0f);
     ''')
     assert code == expect.strip()
 
@@ -1076,25 +1131,47 @@ def test_class():
     ''')
 
     # When
-    code = py2c(src)
+    with use_config(use_double=True):
+        code = py2c(src)
 
-    # Then
-    expect = dedent('''
-    double Foo_g(Foo* self, double x)
-    {
-        return (x * 2.0);
-    }
+        # Then
+        expect = dedent('''
+        double Foo_g(Foo* self, double x)
+        {
+            return (x * 2.0);
+        }
 
-    void Foo_f(Foo* self, double x)
-    {
-        double y;
-        double z;
-        y = (x + 1);
-        do(self->a, x);
-        z = Foo_g(self, y);
-    }
-    ''')
-    assert code.strip() == expect.strip()
+        void Foo_f(Foo* self, double x)
+        {
+            double y;
+            double z;
+            y = (x + 1);
+            do(self->a, x);
+            z = Foo_g(self, y);
+        }
+        ''')
+        assert code.strip() == expect.strip()
+
+    with use_config(use_double=False):
+        code = py2c(src)
+
+        # Then
+        expect = dedent('''
+        double Foo_g(Foo* self, double x)
+        {
+            return (x * 2.0f);
+        }
+
+        void Foo_f(Foo* self, double x)
+        {
+            double y;
+            double z;
+            y = (x + 1);
+            do(self->a, x);
+            z = Foo_g(self, y);
+        }
+        ''')
+        assert code.strip() == expect.strip()
 
 
 def test_unsupported_method():
@@ -1357,17 +1434,18 @@ def test_handles_parsing_functions():
             return x + 1.0
 
     # When
-    t = CConverter()
-    code = t.parse_function(A)
+    with use_config(use_double=False):
+        t = CConverter()
+        code = t.parse_function(A)
 
-    # Then
-    expect = dedent('''
-    double A_f(A* self, double x)
-    {
-        return (x + 1.0);
-    }
-    ''')
-    assert code.strip() == expect.strip()
+        # Then
+        expect = dedent('''
+        double A_f(A* self, double x)
+        {
+            return (x + 1.0f);
+        }
+        ''')
+        assert code.strip() == expect.strip()
 
 
 def test_address_works():
