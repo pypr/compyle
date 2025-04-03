@@ -548,6 +548,19 @@ this will often include multiple kernels as well. Note that on CUDA the
 ``all_source`` does not show all of the sources as PyCUDA currently does not
 make it easy to inspect the code.
 
+You can define the environment variable ``COMPYLE_DEBUG``, for example on bash
+with ``export COMPYLE_DEBUG=1`` and run your code. This will print out the
+source code generated for every generated function. For CPU execution it will
+also display compiler output if there is no cached extension available.
+Turning on the debug feature can give you a lot of information, but it is very
+useful if you want to get into the gory details and do not want to edit the
+sources just to look at the generated code.
+
+It is important to note that all the Cython code is saved on disk inside the
+``~/.compyle/`` directory in a platform specific directory but no files are
+written by compyle for any OpenCL or CUDA code and in these cases the
+``COMPYLE_DEBUG`` option is very handy.
+
 
 Abstracting out arrays
 -----------------------
