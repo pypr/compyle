@@ -29,11 +29,11 @@ cdef c_${name}(${c_arg_sig}):
 %if openmp:
     with nogil, parallel():
         for i in ${get_parallel_range("SIZE")}:
-%else:
-    if 1:
-        for i in range(SIZE):
-%endif
             ${name}(${c_args})
+%else:
+    for i in range(SIZE):
+        ${name}(${c_args})
+%endif
 
 cpdef py_${name}(${py_arg_sig}):
     c_${name}(${py_args})
