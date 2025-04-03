@@ -1,5 +1,6 @@
 import importlib
 import math
+import os
 import re
 from textwrap import dedent
 
@@ -137,6 +138,10 @@ class Transpiler(object):
         self.blocks = []
         self.mod = None
         self._use_double = get_config().use_double
+        if os.environ.get('COMPYLE_DEBUG') is not None:
+            self._debug = True
+        else:
+            self._debug = False
 
         # This attribute will store the generated and compiled source for
         # debugging.
@@ -144,7 +149,7 @@ class Transpiler(object):
         if backend == 'cython':
             self._cgen = CythonGenerator()
             self.header = dedent('''
-            # cython: language_level=3
+            # cython: language_level=3, cdivision=True
             from libc.stdio cimport printf
             from libc.math cimport *
             from libc.math cimport fabs as abs
@@ -310,3 +315,6 @@ class Transpiler(object):
             from pycuda.compiler import SourceModule
             self.source = convert_to_float_if_needed(self.get_code())
             self.mod = SourceModule(self.source)
+
+        if self._debug:
+            print(self.source)

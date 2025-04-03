@@ -146,6 +146,12 @@ class ExtModule(object):
         )
         self.extra_link_args = extra_link_args if extra_link_args else []
 
+        if os.environ.get('COMPYLE_DEBUG') is not None:
+            self.verbose = True
+            self._debug = True
+        else:
+            self._debug = False
+
     def _add_local_include(self):
         if 'bsd' in platform.system().lower():
             local = '/usr/local/include'
@@ -269,6 +275,10 @@ class ExtModule(object):
                         force_rebuild=True,
                         setup_args={'script_args': script_args}
                     )
+                if self._debug:
+                    _out = stream.get_output()
+                    print(_out[0])
+                    print(_out[1])
             except (CompileError, LinkError):
                 hline = "*"*80
                 print(hline + "\nERROR")
@@ -311,6 +321,7 @@ class ExtModule(object):
 
     def _get_extra_args(self):
         ec, el = self.extra_compile_args, self.extra_link_args
+        ec += ['-O3']
         if get_config().use_openmp:
             _ec, _el = get_openmp_flags()
             return _ec + ec, _el + el
