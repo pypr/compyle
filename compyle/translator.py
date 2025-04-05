@@ -34,16 +34,7 @@ def literal_to_float(value, use_double=False):
     """Convert numerical value to a string in 32 bit floating point notation.
     """
     if isinstance(value, float) and not use_double:
-        vs = str(value)
-        if 'e' in vs:
-            e_idx = vs.find('e')
-            mantissa = vs[:e_idx]
-            if '.' not in mantissa:
-                return mantissa + '.0f' + vs[(e_idx + 1):]
-            else:
-                return vs.replace('e', 'f')
-        else:
-            return vs + 'f'
+        return str(value) + 'f'
     else:
         return str(value)
 

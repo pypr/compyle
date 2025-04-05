@@ -21,10 +21,10 @@ def test_literal_to_float():
     # Given/When/Then
     assert literal_to_float(1.0) == '1.0f'
     assert literal_to_float(1.01325e5) == '101325.0f'
-    assert literal_to_float(1.01325e-5) == '1.01325f-05'
+    assert literal_to_float(1.01325e-5) == '1.01325e-05f'
     assert literal_to_float(1.01325E5) == '101325.0f'
-    assert literal_to_float(1.01325e-05) == '1.01325f-05'
-    assert literal_to_float(1.0e-5) == '1.0f-05'
+    assert literal_to_float(1.01325e-05) == '1.01325e-05f'
+    assert literal_to_float(1.0e-5) == '1e-05f'
     assert literal_to_float(1.0, use_double=True) == '1.0'
     assert literal_to_float(10, use_double=True) == '10'
     assert literal_to_float(1.01325e5, use_double=True) == '101325.0'
