@@ -269,12 +269,15 @@ class ExtModule(object):
                 script_args = ['--verbose']
             try:
                 with CaptureMultipleStreams() as stream:
+                    old_lvl = logging.getLogger().level
                     mod = pyxbuild.pyx_to_dll(
                         self.src_path, extension,
                         pyxbuild_dir=self.build_dir,
                         force_rebuild=True,
                         setup_args={'script_args': script_args}
                     )
+                    # distuitils sets the log level to debug for the root logger!
+                    logging.getLogger().setLevel(old_lvl)
                 if self._debug:
                     _out = stream.get_output()
                     print(_out[0])
