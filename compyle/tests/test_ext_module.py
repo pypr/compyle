@@ -179,16 +179,14 @@ class TestExtModule(TestCase):
         s = ExtModule(src, root=self.root)
 
         # When
-        with self.capsys.disabled():
-            with mock.patch('builtins.print') as mp:
-                self.assertRaises(SystemExit, s.write_and_build)
+        self.assertRaises(SystemExit, s.write_and_build)
 
-            # Then
-            args_list = mp.call_args_list
-            err = args_list[-2].args[0]
-            print(err, args_list)
-            self.assertTrue('Error compiling Cython file' in err)
-            self.assertTrue('def f()' in err)
+        # Then
+        captured = self.capsys.readouterr()
+        err = captured.out + captured.err
+        print(err)
+        self.assertTrue('Error compiling Cython file' in err)
+        self.assertTrue('def f()' in err)
 
     def _create_dummy_module(self):
         code = "# cython: language_level=3\ndef hello(): return 'hello'"
