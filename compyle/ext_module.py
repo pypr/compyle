@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from distutils.sysconfig import get_config_vars
 from distutils.util import get_platform
 from distutils.errors import CompileError, LinkError
+from Cython.Compiler.Errors import PyrexError
 import hashlib
 import importlib
 import io
@@ -282,7 +283,7 @@ class ExtModule(object):
                     _out = stream.get_output()
                     print(_out[0])
                     print(_out[1])
-            except (CompileError, LinkError):
+            except (PyrexError, CompileError, LinkError):
                 hline = "*"*80
                 print(hline + "\nERROR")
                 s_out = stream.get_output()
