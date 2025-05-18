@@ -186,7 +186,7 @@ class TestExtModule(TestCase):
             # Then
             args_list = mp.call_args_list
             err = args_list[-2].args[0]
-            # print(err)
+            print(err, args_list)
             self.assertTrue('Error compiling Cython file' in err)
             self.assertTrue('def f()' in err)
 
