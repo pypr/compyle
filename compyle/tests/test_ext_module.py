@@ -7,6 +7,7 @@ import sys
 import tempfile
 from textwrap import dedent
 from multiprocessing import Pool
+import pytest
 from unittest import TestCase, main, SkipTest
 
 try:
@@ -107,6 +108,11 @@ class TestMiscExtMod(TestCase):
         self.assertNotEqual(get_md5(data), get_md5(data + ' '))
 
 
+@pytest.fixture(scope="function")
+def use_capsys(request, capsys):
+    request.instance.capsys = capsys
+
+
 class TestExtModule(TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp()
@@ -161,6 +167,28 @@ class TestExtModule(TestCase):
         mod = s.load()
         self.assertEqual(mod.f(), "hello world")
         self.assertTrue(exists(s.ext_path))
+
+    @pytest.mark.usefixtures("use_capsys")
+    def test_compiler_errors_are_captured(self):
+        # Given
+        src = dedent('''\
+        # cython: language_level=3
+        def f():
+            print(bug)
+        ''')
+        s = ExtModule(src, root=self.root)
+
+        # When
+        with self.capsys.disabled():
+            with mock.patch('builtins.print') as mp:
+                self.assertRaises(SystemExit, s.write_and_build)
+
+            # Then
+            args_list = mp.call_args_list
+            err = args_list[-2].args[0]
+            # print(err)
+            self.assertTrue('Error compiling Cython file' in err)
+            self.assertTrue('def f()' in err)
 
     def _create_dummy_module(self):
         code = "# cython: language_level=3\ndef hello(): return 'hello'"
