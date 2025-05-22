@@ -100,7 +100,7 @@ class ExtModule(object):
     """
     def __init__(self, src, extension='pyx', root=None, verbose=False,
                  depends=None, extra_inc_dirs=None, extra_compile_args=None,
-                 extra_link_args=None):
+                 extra_link_args=None, cython_inc_dirs=None):
         """Initialize ExtModule.
 
         Parameters
@@ -121,12 +121,15 @@ class ExtModule(object):
             if any of these have an m_time greater than the compiled extension
             module, the extension will be recompiled.
 
-        extra_inc_dirs : list : a list of directories to look for .pxd, .h
+        extra_inc_dirs : list : a list of directories to look for .h
             and other files.
 
         extra_compile_args: list : a list of extra compilation flags.
 
         extra_link_args: list : a list of extra link flags.
+
+        cython_inc_dirs: list : a list of extra cython include paths to find
+            *.pxd files.
         """
         self._setup_root(root)
         self.code = src
@@ -142,6 +145,7 @@ class ExtModule(object):
             extra_compile_args if extra_compile_args else []
         )
         self.extra_link_args = extra_link_args if extra_link_args else []
+        self.cython_inc_dirs = cython_inc_dirs if cython_inc_dirs else []
 
         if os.environ.get('COMPYLE_DEBUG') is not None:
             self.verbose = True
@@ -251,7 +255,7 @@ class ExtModule(object):
             extension = Extension(
                 name=self.name, sources=[self.src_path],
                 include_dirs=inc_dirs,
-                cython_include_dirs=inc_dirs,
+                cython_include_dirs=self.cython_inc_dirs,
                 extra_compile_args=extra_compile_args,
                 extra_link_args=extra_link_args,
                 language="c++"
