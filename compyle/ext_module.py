@@ -17,11 +17,7 @@ import shutil
 import sys
 import time
 
-# Conditional/Optional imports.
-if sys.platform == 'win32':
-    from setuptools.extension import Extension
-else:
-    from distutils.extension import Extension
+from Cython.Distutils import Extension
 
 # Package imports.
 from .config import get_config  # noqa: 402
@@ -255,6 +251,7 @@ class ExtModule(object):
             extension = Extension(
                 name=self.name, sources=[self.src_path],
                 include_dirs=inc_dirs,
+                cython_include_dirs=inc_dirs,
                 extra_compile_args=extra_compile_args,
                 extra_link_args=extra_link_args,
                 language="c++"
