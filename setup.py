@@ -31,7 +31,6 @@ classes = '''
 Development Status :: 4 - Beta
 Intended Audience :: Developers
 Intended Audience :: Science/Research
-License :: OSI Approved :: BSD License
 Natural Language :: English
 Operating System :: MacOS :: MacOS X
 Operating System :: Microsoft :: Windows
@@ -63,7 +62,7 @@ setup(
     author_email='prabhu@aero.iitb.ac.in',
     description='Execute a subset of Python on HPC platforms',
     long_description=open('README.rst').read(),
-    license="BSD",
+    license="BSD-3-Clause",
     url='https://github.com/pypr/compyle',
     classifiers=classifiers,
     packages=find_packages(),

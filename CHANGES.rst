@@ -1,3 +1,20 @@
+0.9
+~~~~
+
+* Release date: 23 May, 2025.
+* Allow user to pass a cython include directory when using ``ExtModule``.
+* Fix error with Cython compilation error messages not being shown.
+* Fix issue with the root log level being set when building an extension module.
+* Use cdivision always as that is usually the intent when using compyle.
+* Add a ``COMPYLE_DEBUG`` environment variable to print debug information.
+* Explicitly type any float literals for single precision to improve GPU performance.
+* Fix bug with the directory where the sources were saved.
+* Support for NumPy 2 and Cython 3.x.
+* Drop Python 2 support.
+* Do late binding so the backend can be changed.
+* Fix NumPy deprecation errors.
+
+
 0.8.1
 ~~~~~~
 
