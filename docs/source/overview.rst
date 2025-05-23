@@ -139,32 +139,32 @@ More examples
 --------------
 
 More complex examples (but still fairly simple) are available in the `examples
-<https://github.com/pypr/compyle/tree/master/examples>`_ directory.
+<https://github.com/pypr/compyle/tree/main/examples>`_ directory.
 
-- `axpb.py <https://github.com/pypr/compyle/tree/master/examples/axpb.py>`_: the
+- `axpb.py <https://github.com/pypr/compyle/tree/main/examples/axpb.py>`_: the
   above example but for openmp and opencl compared with serial showing that in
   some cases serial is actually faster than parallel!
 
 - `vm_elementwise.py
-  <https://github.com/pypr/compyle/tree/master/examples/vm_elementwise.py>`_:
+  <https://github.com/pypr/compyle/tree/main/examples/vm_elementwise.py>`_:
   shows a simple N-body code with two-dimensional point vortices. The code uses
   a simple elementwise operation and works with OpenMP and OpenCL.
 
 - `vm_numba.py
-  <https://github.com/pypr/compyle/tree/master/examples/vm_numba.py>`_: shows
+  <https://github.com/pypr/compyle/tree/main/examples/vm_numba.py>`_: shows
   the same code written in numba for comparison. In our benchmarks, Compyle is
   actually faster even in serial and in parallel it can be much faster when you
   use all cores.
 
 - `vm_kernel.py
-  <https://github.com/pypr/compyle/tree/master/examples/vm_kernel.py>`_: shows
+  <https://github.com/pypr/compyle/tree/main/examples/vm_kernel.py>`_: shows
   how one can write a low-level OpenCL kernel in pure Python and use that. This
   also shows how you can allocate and use local (or shared) memory which is
   often very important for performance on GPGPUs. This code will only run via
   PyOpenCL.
 
 - `bench_vm.py
-  <https://github.com/pypr/compyle/tree/master/examples/bench_vm.py>`_:
+  <https://github.com/pypr/compyle/tree/main/examples/bench_vm.py>`_:
   Benchmarks the various vortex method results above for a comparison with
   numba.
 

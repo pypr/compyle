@@ -9,7 +9,7 @@ Compyle: execute a subset of Python on HPC platforms
 .. |Documentation Status| image:: https://readthedocs.org/projects/compyle/badge/?version=latest
     :target: https://compyle.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
-.. |Coverage Status| image:: https://codecov.io/gh/pypr/compyle/branch/master/graph/badge.svg
+.. |Coverage Status| image:: https://codecov.io/gh/pypr/compyle/branch/main/graph/badge.svg
     :target: https://codecov.io/gh/pypr/compyle
 
 Compyle allows users to execute a restricted subset of Python (almost similar
@@ -102,6 +102,6 @@ Examples
 ---------
 
 Some simple examples and benchmarks are available in the `examples
-<https://github.com/pypr/compyle/tree/master/examples>`_ directory.
+<https://github.com/pypr/compyle/tree/main/examples>`_ directory.
 
 You may also run these examples on the `Google Colab notebook`_
