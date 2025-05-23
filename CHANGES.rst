@@ -1,3 +1,10 @@
+0.9.1
+~~~~~~
+
+* Release date: 23 May, 2025.
+* Fix issue with unnecessary files to make a smaller source dist.
+
+
 0.9
 ~~~~
 
