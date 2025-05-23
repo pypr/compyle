@@ -32,7 +32,7 @@ repository and install compyle like so::
 If you just want the latest version and do not want to clone the repository,
 you can also do::
 
-  $ pip install https://github.com/pypr/compyle/zipball/master
+  $ pip install https://github.com/pypr/compyle/zipball/main
 
 
 .. _PyOpenCL: https://documen.tician.de/pyopencl/
