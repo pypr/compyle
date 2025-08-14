@@ -40,7 +40,7 @@ class ArgumentParser(argparse.ArgumentParser):
         # setup standard arguments
         self.add_argument(
             '-b', '--backend', action='store', dest='backend', default='cython',
-            choices = ['cython', 'opencl', 'cuda'],
+            choices = ['cython', 'opencl', 'cuda', 'c'],
             help='Choose the backend.'
         )
         self.add_argument(
