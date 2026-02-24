@@ -15,6 +15,7 @@ from .types import (dtype_to_ctype, get_declare_info,
 from .extern import Extern
 from .utils import getsourcelines
 from .profile import profile
+from .ast_utils import get_str_value
 
 from . import array
 from . import parallel
@@ -198,15 +199,18 @@ class AnnotationHelper(ast.NodeVisitor):
         warnings.warn(msg)
 
     def visit_declare(self, node):
-        if not isinstance(node.args[0], ast.Str):
+        arg0 = node.args[0]
+        type_str = get_str_value(arg0)
+        if type_str is None:
             self.error("Argument to declare should be a string.", node)
-        type_str = node.args[0].s
         return self.get_declare_type(type_str)
 
     def visit_cast(self, node):
-        if not isinstance(node.args[1], ast.Str):
+        arg1 = node.args[1]
+        typestr = get_str_value(arg1)
+        if typestr is None:
             self.error("Cast type should be a string.", node)
-        return node.args[1].s
+        return typestr
 
     def visit_address(self, node):
         base_type = self.visit(node.args[0])
@@ -293,6 +297,13 @@ class AnnotationHelper(ast.NodeVisitor):
 
     def visit_Num(self, node):
         return get_ctype_from_arg(node.n)
+
+    def visit_Constant(self, node):
+        val = node.value
+        if isinstance(val, (int, float)):
+            return get_ctype_from_arg(val)
+        # For other constants (e.g., strings/None/bool), we return None
+        return None
 
     def visit_UnaryOp(self, node):
         return self.visit(node.operand)

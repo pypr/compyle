@@ -21,7 +21,7 @@ from mako.template import Template
 
 from .types import KnownType, Undefined, get_declare_info
 from .config import get_config
-from .ast_utils import get_assigned, has_return
+from .ast_utils import get_assigned, has_return, get_str_value, is_str_node
 from .utils import getsourcelines
 
 logger = logging.getLogger(__name__)
@@ -247,11 +247,12 @@ def parse_declare(code):
     if call.func.id != 'declare':
         raise CodeGenerationError('Unknown declare statement: %s' % code)
     arg0 = call.args[0]
-    if not isinstance(arg0, ast.Str):
-        err = 'Type should be a string, given :%r' % arg0.s
+    typestr = get_str_value(arg0)
+    if typestr is None:
+        err = 'Type should be a string, given :%r' % getattr(arg0, 's', getattr(arg0, 'value', arg0))
         raise CodeGenerationError(err)
 
-    return get_declare_info(arg0.s)
+    return get_declare_info(typestr)
 
 
 class CythonGenerator(object):

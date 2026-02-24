@@ -4,6 +4,7 @@ from textwrap import dedent
 
 from .types import kwtype_to_annotation
 import mako.template
+from .ast_utils import get_str_value
 
 
 getfullargspec = inspect.getfullargspec
@@ -45,8 +46,14 @@ class Template(object):
         args += extra_args
         arg_string = ', '.join(args)
         body = m.body[0].body
-        template = body[-1].value.s
-        docstring = body[0].value.s if len(body) == 2 else ''
+        # Extract template and docstring in an AST-version-agnostic way
+        last_val = body[-1].value
+        template = get_str_value(last_val) or ''
+
+        docstring = ''
+        if len(body) == 2:
+            first_val = body[0].value
+            docstring = get_str_value(first_val) or ''
         name = self.name
         sig = 'def {name}({args}):\n    """{docs}\n    """'.format(
             name=name, args=arg_string, docs=docstring
