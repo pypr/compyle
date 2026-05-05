@@ -26,6 +26,7 @@ from .cython_generator import (
     CodeGenerationError, KnownType, Undefined, all_numeric
 )
 from .utils import getsource
+from .ast_utils import is_str_node, get_str_value
 
 PY_VER = sys.version_info.major
 
@@ -234,11 +235,11 @@ class CConverter(ast.NodeVisitor):
         return '\n'.join(pad + x for x in lines)
 
     def _remove_docstring(self, body):
-        if body and isinstance(body[0], ast.Expr) and \
-                isinstance(body[0].value, ast.Str):
-            return body[1:]
-        else:
-            return body
+        if body and isinstance(body[0], ast.Expr):
+            val = body[0].value
+            if is_str_node(val):
+                return body[1:]
+        return body
 
     def _get_local_info(self, obj):
         return None
@@ -351,9 +352,11 @@ class CConverter(ast.NodeVisitor):
         left, right = node.targets[0], node.value
         if isinstance(right, ast.Call) and \
            isinstance(right.func, ast.Name) and right.func.id == 'declare':
-            if not isinstance(right.args[0], ast.Str):
+            arg0 = right.args[0]
+            s = get_str_value(arg0)
+            if s is None:
                 self.error("Argument to declare should be a string.", node)
-            type = right.args[0].s
+            type = s
             if isinstance(left, ast.Name):
                 self._known.add(left.id)
                 return self._get_variable_declaration(type, [self.visit(left)])
@@ -395,7 +398,11 @@ class CConverter(ast.NodeVisitor):
             elif 'atomic' in node.func.id:
                 return self.render_atomic(node.func.id, node.args[0])
             elif node.func.id == 'cast':
-                return '(%s) (%s)' % (node.args[1].s, self.visit(node.args[0]))
+                arg1 = node.args[1]
+                typestr = get_str_value(arg1)
+                if typestr is None:
+                    self.error("Argument to cast should be a string.", node)
+                return '(%s) (%s)' % (typestr, self.visit(node.args[0]))
             else:
                 return '{func}({args})'.format(
                     func=node.func.id,
@@ -690,6 +697,22 @@ class CConverter(ast.NodeVisitor):
 
     def visit_Num(self, node):
         return literal_to_float(node.n, self._use_double)
+
+    def visit_Constant(self, node):
+        val = node.value
+        # Handle booleans explicitly first
+        if isinstance(val, bool):
+            return self._replacements[val]
+        # Numbers: int/float
+        if isinstance(val, (int, float)):
+            return literal_to_float(val, self._use_double)
+        # Strings
+        if isinstance(val, str):
+            return r'"%s"' % val
+        # None and other constants
+        if val in self._replacements:
+            return self._replacements[val]
+        return repr(val)
 
     def visit_Or(self, node):
         return '||'

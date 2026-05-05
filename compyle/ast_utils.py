@@ -174,3 +174,27 @@ def has_return(code):
     """Returns True of the node has a return statement.
     """
     return has_node(code, ast.Return)
+
+
+def is_str_node(node):
+    """Return True if the AST node represents a string literal.
+
+    Works on both older ASTs (ast.Str) and newer ones (ast.Constant).
+    """
+    if isinstance(node, ast.Constant):
+        return isinstance(node.value, str)
+    Str = getattr(ast, 'Str', None)
+    return Str is not None and isinstance(node, Str)
+
+
+def get_str_value(node):
+    """Return the string value for a string AST node.
+
+    Returns None if the node is not a string node.
+    """
+    if isinstance(node, ast.Constant):
+        return node.value if isinstance(node.value, str) else None
+    Str = getattr(ast, 'Str', None)
+    if Str is not None and isinstance(node, Str):
+        return node.s
+    return None
