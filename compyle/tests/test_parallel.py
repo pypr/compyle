@@ -19,6 +19,65 @@ def external(x):
     return x
 
 
+class ParallelUtilsBaseC(object):
+    def test_elementwise_works_with_c(self):
+        self._check_simple_elementwise(backend='c')
+
+    def test_elementwise_works_with_global_constant_c(self):
+        self._check_elementwise_with_constant(backend='c')
+
+    def test_reduction_works_without_map_c(self):
+        self._check_simple_reduction(backend='c')
+
+    def test_reduction_works_with_map_c(self):
+        self._check_reduction_with_map(backend='c')
+
+    def test_reduction_works_with_external_func_c(self):
+        self._check_reduction_with_external_func(backend='c')
+
+    def test_reduction_works_neutral_c(self):
+        self._check_reduction_min(backend='c')
+
+    def test_scan_works_c(self):
+        self._test_scan(backend='c')
+
+    def test_scan_works_c_parallel(self):
+        with use_config(use_openmp=True):
+            self._test_scan(backend='c')
+
+    def test_large_scan_works_c_parallel(self):
+        with use_config(use_openmp=True):
+            self._test_large_scan(backend='c')
+
+    def test_scan_works_with_external_func_c(self):
+        self._test_scan_with_external_func(backend='c')
+
+    def test_scan_works_with_external_func_c_parallel(self):
+        with use_config(use_openmp=True):
+            self._test_scan_with_external_func(backend='c')
+
+    def test_scan_last_item_c_parallel(self):
+        with use_config(use_openmp=True):
+            self._test_scan_last_item(backend='c')
+
+    def test_scan_last_item_c_serial(self):
+        self._test_scan_last_item(backend='c')
+
+    def test_unique_scan_c(self):
+        self._test_unique_scan(backend='c')
+
+    def test_unique_scan_c_parallel(self):
+        with use_config(use_openmp=True):
+            self._test_unique_scan(backend='c')
+
+    def test_repeated_scans_with_different_settings_c(self):
+        with use_config(use_openmp=False):
+            self._test_unique_scan(backend='c')
+
+        with use_config(use_openmp=True):
+            self._test_unique_scan(backend='c')
+
+
 class ParallelUtilsBase(object):
     def test_elementwise_works_with_cython(self):
         self._check_simple_elementwise(backend='cython')
@@ -221,7 +280,9 @@ class ParallelUtilsBase(object):
             self._test_unique_scan(backend='cython')
 
 
-class TestParallelUtils(ParallelUtilsBase, unittest.TestCase):
+class TestParallelUtils(ParallelUtilsBase,
+                        ParallelUtilsBaseC,
+                        unittest.TestCase):
     def setUp(self):
         cfg = get_config()
         self._use_double = cfg.use_double
