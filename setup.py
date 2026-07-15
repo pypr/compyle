@@ -19,12 +19,16 @@ def get_version():
     return data.get('__version__')
 
 
-install_requires = ['mako', 'pytools', 'cython', 'numpy']
+install_requires = [
+    'mako', 'pytools', 'cython', 'numpy', 'setuptools>=42.0.0'
+]
 tests_require = ['pytest']
 if sys.version_info[0] < 3:
     tests_require += ['mock>=1.0']
 docs_require = ['sphinx']
-cuda_require = ['pycuda', 'cupy']
+cuda_require = ['pycuda', 'cupy', 'six']
+cuda12x_require = ['pycuda', 'cupy-cuda12x', 'six']
+cuda13x_require = ['pycuda', 'cupy-cuda13x', 'six']
 opencl_require = ['pyopencl']
 
 classes = '''
@@ -73,6 +77,8 @@ setup(
         "tests": tests_require,
         "dev": docs_require + tests_require,
         "cuda": cuda_require,
+        "cuda12x": cuda12x_require,
+        "cuda13x": cuda13x_require,
         "opencl": opencl_require,
     },
 )

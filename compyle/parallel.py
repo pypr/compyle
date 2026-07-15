@@ -547,11 +547,12 @@ class ElementwiseBase(object):
             self.c_func(*c_args, **kw)
             self.queue.finish()
         elif self.backend == 'cuda':
-            import pycuda.driver as drv
-            event = drv.Event()
             self.c_func(*c_args, **kw)
-            event.record()
-            event.synchronize()
+            if get_config().profile:
+                import pycuda.driver as drv
+                event = drv.Event()
+                event.record()
+                event.synchronize()
 
 
 class Elementwise(object):
@@ -809,11 +810,12 @@ class ReductionBase(object):
             self.queue.finish()
             return result.get()
         elif self.backend == 'cuda':
-            import pycuda.driver as drv
-            event = drv.Event()
             result = self.c_func(*c_args)
-            event.record()
-            event.synchronize()
+            if get_config().profile:
+                import pycuda.driver as drv
+                event = drv.Event()
+                event.record()
+                event.synchronize()
             return result.get()
 
 
@@ -1229,11 +1231,12 @@ class ScanBase(object):
             self.c_func(*[c_args_dict[k] for k in output_arg_keys])
             self.queue.finish()
         elif self.backend == 'cuda':
-            import pycuda.driver as drv
-            event = drv.Event()
             self.c_func(*[c_args_dict[k] for k in output_arg_keys])
-            event.record()
-            event.synchronize()
+            if get_config().profile:
+                import pycuda.driver as drv
+                event = drv.Event()
+                event.record()
+                event.synchronize()
 
 
 class Scan(object):

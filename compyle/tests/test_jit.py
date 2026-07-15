@@ -1,12 +1,16 @@
 from math import sin
 import unittest
 import numpy as np
+from unittest.mock import patch
 
 from pytest import importorskip
 
 from ..config import get_config, use_config
 from ..array import wrap
-from ..jit import get_binop_return_type, AnnotationHelper
+from ..jit import (
+    AnnotationHelper, ElementwiseJIT, ReductionJIT, ScanJIT,
+    get_binop_return_type
+)
 from ..types import annotate
 from ..parallel import Elementwise, Reduction, Scan
 
@@ -30,6 +34,91 @@ def h(a, b):
 def undeclared_f(a, b):
     h_ab = h(a, b)
     return g(h_ab)
+
+
+class TestCUDAJITSynchronization(unittest.TestCase):
+    def _patch_cuda_event(self):
+        sync_calls = []
+
+        class FakeEvent:
+            def record(self):
+                pass
+
+            def synchronize(self):
+                sync_calls.append("sync")
+
+        return sync_calls, patch("pycuda.driver.Event", FakeEvent)
+
+    def test_cuda_elementwise_jit_does_not_synchronize_without_profile(self):
+        importorskip("pycuda")
+
+        @annotate
+        def axpb(i, x):
+            x[i] = x[i] + 1.0
+
+        kernel = ElementwiseJIT(axpb, backend="cuda")
+        kernel._generate_kernel = lambda *args: lambda *c_args, **kw: None
+        sync_calls, event_patch = self._patch_cuda_event()
+
+        with use_config(profile=False), event_patch:
+            kernel(np.zeros(8))
+
+        assert sync_calls == []
+
+    def test_cuda_scan_jit_does_not_synchronize_without_profile(self):
+        importorskip("pycuda")
+
+        @annotate(input="doublep", return_="double")
+        def input_expr(i, input):
+            return input[i]
+
+        @annotate(output="doublep", item="double")
+        def output_expr(i, item, output):
+            output[i] = item
+
+        scan = ScanJIT(input=input_expr, output=output_expr, backend="cuda")
+        output_expr.arg_keys = {scan._get_backend_key(): ["input", "output"]}
+        scan._generate_kernel = lambda **kwargs: lambda *c_args: None
+        sync_calls, event_patch = self._patch_cuda_event()
+
+        with use_config(profile=False), event_patch:
+            scan(input=np.zeros(8), output=np.zeros(8))
+
+        assert sync_calls == []
+
+    def test_cuda_reduction_jit_does_not_event_synchronize_without_profile(self):
+        importorskip("pycuda")
+
+        class FakeResult:
+            def get(self):
+                return 1.0
+
+        reduction = ReductionJIT("a+b", backend="cuda")
+        reduction._generate_kernel = (
+            lambda *args: lambda *c_args, **kw: FakeResult()
+        )
+        sync_calls, event_patch = self._patch_cuda_event()
+
+        with use_config(profile=False), event_patch:
+            assert reduction(np.zeros(8)) == 1.0
+
+        assert sync_calls == []
+
+    def test_cuda_elementwise_jit_synchronizes_with_profile(self):
+        importorskip("pycuda")
+
+        @annotate
+        def axpb(i, x):
+            x[i] = x[i] + 1.0
+
+        kernel = ElementwiseJIT(axpb, backend="cuda")
+        kernel._generate_kernel = lambda *args: lambda *c_args, **kw: None
+        sync_calls, event_patch = self._patch_cuda_event()
+
+        with use_config(profile=True), event_patch:
+            kernel(np.zeros(8))
+
+        assert sync_calls == ["sync"]
 
 
 class TestAnnotationHelper(unittest.TestCase):

@@ -9,6 +9,13 @@ import mako.template
 getfullargspec = inspect.getfullargspec
 
 
+def _string_value(node):
+    value = node.value
+    if isinstance(value, ast.Constant):
+        return value.value
+    return value.s
+
+
 class Template(object):
     def __init__(self, name):
         self.name = name
@@ -45,8 +52,8 @@ class Template(object):
         args += extra_args
         arg_string = ', '.join(args)
         body = m.body[0].body
-        template = body[-1].value.s
-        docstring = body[0].value.s if len(body) == 2 else ''
+        template = _string_value(body[-1])
+        docstring = _string_value(body[0]) if len(body) == 2 else ''
         name = self.name
         sig = 'def {name}({args}):\n    """{docs}\n    """'.format(
             name=name, args=arg_string, docs=docstring

@@ -1,17 +1,98 @@
 from math import sin
 import unittest
 import numpy as np
+from unittest.mock import patch
 
 from pytest import importorskip
 
 from ..config import get_config, use_config
 from ..array import wrap, zeros
 from ..types import annotate, declare
-from ..parallel import Elementwise, Reduction, Scan
+from ..parallel import (
+    Elementwise, ElementwiseBase, Reduction, ReductionBase, Scan, ScanBase
+)
 from ..low_level import atomic_inc, atomic_dec
 from .test_jit import g
 
 MY_CONST = 42
+
+
+class TestCUDAParallelSynchronization(unittest.TestCase):
+    def _patch_cuda_event(self):
+        sync_calls = []
+
+        class FakeEvent:
+            def record(self):
+                pass
+
+            def synchronize(self):
+                sync_calls.append("sync")
+
+        return sync_calls, patch("pycuda.driver.Event", FakeEvent)
+
+    def test_cuda_elementwise_base_does_not_synchronize_without_profile(self):
+        importorskip("pycuda")
+
+        kernel = object.__new__(ElementwiseBase)
+        kernel.backend = "cuda"
+        kernel.c_func = lambda *c_args, **kw: None
+        sync_calls, event_patch = self._patch_cuda_event()
+
+        with use_config(profile=False), event_patch:
+            kernel(np.zeros(8))
+
+        assert sync_calls == []
+
+    def test_cuda_reduction_base_does_not_event_synchronize_without_profile(self):
+        importorskip("pycuda")
+
+        class FakeResult:
+            def get(self):
+                return 1.0
+
+        reduction = object.__new__(ReductionBase)
+        reduction.backend = "cuda"
+        reduction.c_func = lambda *c_args: FakeResult()
+        sync_calls, event_patch = self._patch_cuda_event()
+
+        with use_config(profile=False), event_patch:
+            assert reduction(np.zeros(8)) == 1.0
+
+        assert sync_calls == []
+
+    def test_cuda_scan_base_does_not_synchronize_without_profile(self):
+        importorskip("pycuda")
+
+        class OutputFunc:
+            pass
+
+        scan = object.__new__(ScanBase)
+        scan.backend = "cuda"
+        scan._config = get_config()
+        scan.c_func = lambda *c_args: None
+        scan.output_func = OutputFunc()
+        scan.output_func.arg_keys = {
+            scan._get_backend_key(): ["input", "output"]
+        }
+        sync_calls, event_patch = self._patch_cuda_event()
+
+        with use_config(profile=False), event_patch:
+            scan(input=np.zeros(8), output=np.zeros(8))
+
+        assert sync_calls == []
+
+    def test_cuda_elementwise_base_synchronizes_with_profile(self):
+        importorskip("pycuda")
+
+        kernel = object.__new__(ElementwiseBase)
+        kernel.backend = "cuda"
+        kernel.c_func = lambda *c_args, **kw: None
+        sync_calls, event_patch = self._patch_cuda_event()
+
+        with use_config(profile=True), event_patch:
+            kernel(np.zeros(8))
+
+        assert sync_calls == ["sync"]
 
 
 @annotate(x='int', return_='int')

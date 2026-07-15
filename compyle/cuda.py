@@ -18,6 +18,7 @@ from pytools import memoize
 import numpy as np
 import six
 _cuda_ctx = False
+_cuda_memory_pool = None
 
 
 def set_context():
@@ -25,6 +26,15 @@ def set_context():
     if not _cuda_ctx:
         import pycuda.autoinit
         _cuda_ctx = True
+
+
+def get_cuda_allocator():
+    global _cuda_memory_pool
+    set_context()
+    if _cuda_memory_pool is None:
+        from pycuda.tools import DeviceMemoryPool
+        _cuda_memory_pool = DeviceMemoryPool()
+    return _cuda_memory_pool.allocate
 
 
 # The following code is taken from pyopencl for struct mapping.
@@ -1396,7 +1406,8 @@ class _GenericScanKernelBase(object):
 
 generic_scan_kernel_cache = WriteOncePersistentDict(
     "pycuda-generated-scan-kernel-cache-v1",
-    key_builder=_NumpyTypesKeyBuilder())
+    key_builder=_NumpyTypesKeyBuilder(),
+    safe_sync=False)
 
 
 class GenericScanKernel(_GenericScanKernelBase):

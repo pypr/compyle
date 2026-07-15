@@ -25,6 +25,7 @@ from .types import get_declare_info
 from .cython_generator import (
     CodeGenerationError, KnownType, Undefined, all_numeric
 )
+from .ast_utils import get_string_value
 from .utils import getsource
 
 PY_VER = sys.version_info.major
@@ -235,7 +236,7 @@ class CConverter(ast.NodeVisitor):
 
     def _remove_docstring(self, body):
         if body and isinstance(body[0], ast.Expr) and \
-                isinstance(body[0].value, ast.Str):
+                get_string_value(body[0].value) is not None:
             return body[1:]
         else:
             return body
@@ -351,9 +352,9 @@ class CConverter(ast.NodeVisitor):
         left, right = node.targets[0], node.value
         if isinstance(right, ast.Call) and \
            isinstance(right.func, ast.Name) and right.func.id == 'declare':
-            if not isinstance(right.args[0], ast.Str):
+            type = get_string_value(right.args[0])
+            if type is None:
                 self.error("Argument to declare should be a string.", node)
-            type = right.args[0].s
             if isinstance(left, ast.Name):
                 self._known.add(left.id)
                 return self._get_variable_declaration(type, [self.visit(left)])
@@ -395,7 +396,10 @@ class CConverter(ast.NodeVisitor):
             elif 'atomic' in node.func.id:
                 return self.render_atomic(node.func.id, node.args[0])
             elif node.func.id == 'cast':
-                return '(%s) (%s)' % (node.args[1].s, self.visit(node.args[0]))
+                type_str = get_string_value(node.args[1])
+                if type_str is None:
+                    self.error("Cast type should be a string.", node)
+                return '(%s) (%s)' % (type_str, self.visit(node.args[0]))
             else:
                 return '{func}({args})'.format(
                     func=node.func.id,
@@ -681,6 +685,14 @@ class CConverter(ast.NodeVisitor):
             return self._replacements[value]
         else:
             return value
+
+    def visit_Constant(self, node):
+        value = node.value
+        if value is True or value is False or value is None:
+            return self._replacements[value]
+        if isinstance(value, str):
+            return r'"%s"' % value
+        return literal_to_float(value, self._use_double)
 
     def visit_Not(self, node):
         return '!'

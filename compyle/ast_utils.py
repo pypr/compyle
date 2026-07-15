@@ -9,6 +9,18 @@ PY_VER = sys.version_info.major
 basestring = str if PY_VER > 2 else basestring
 
 
+def get_string_value(node):
+    """Return a string literal's value or None if *node* is not a string."""
+    ast_constant = getattr(ast, 'Constant', None)
+    if ast_constant is not None and isinstance(node, ast_constant) and \
+            isinstance(node.value, str):
+        return node.value
+    ast_str = getattr(ast, 'Str', None)
+    if ast_str is not None and isinstance(node, ast_str):
+        return node.s
+    return None
+
+
 class NameLister(ast.NodeVisitor):
     """Utility class to collect the Names in an AST.
     """

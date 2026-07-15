@@ -1,5 +1,6 @@
 import unittest
 import numpy as np
+from unittest.mock import patch
 
 from pytest import importorskip
 
@@ -13,6 +14,52 @@ from ..low_level import (
 
 
 class TestKernel(unittest.TestCase):
+    def _patch_cuda_event(self):
+        sync_calls = []
+
+        class FakeEvent:
+            def record(self):
+                pass
+
+            def synchronize(self):
+                sync_calls.append("sync")
+
+        return sync_calls, patch("pycuda.driver.Event", FakeEvent)
+
+    def _make_cuda_kernel(self):
+        class FakeArray:
+            data = np.zeros(8)
+
+        kernel = object.__new__(Kernel)
+        kernel.backend = "cuda"
+        kernel.knl = lambda *c_args, **kw: None
+        kernel._get_workgroup_size = lambda n: ((8,), (128,))
+        kernel._get_args = lambda args, workgroup_size: []
+        kernel._get_local_size = lambda args, workgroup_size: 0
+        return kernel, FakeArray()
+
+    def test_cuda_kernel_does_not_synchronize_without_profile(self):
+        importorskip("pycuda")
+
+        kernel, fake_array = self._make_cuda_kernel()
+        sync_calls, event_patch = self._patch_cuda_event()
+
+        with use_config(profile=False), event_patch:
+            kernel(fake_array)
+
+        assert sync_calls == []
+
+    def test_cuda_kernel_synchronizes_with_profile(self):
+        importorskip("pycuda")
+
+        kernel, fake_array = self._make_cuda_kernel()
+        sync_calls, event_patch = self._patch_cuda_event()
+
+        with use_config(profile=True), event_patch:
+            kernel(fake_array)
+
+        assert sync_calls == ["sync"]
+
     def test_simple_kernel_opencl(self):
         importorskip('pyopencl')
 

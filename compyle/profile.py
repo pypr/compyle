@@ -179,9 +179,16 @@ def profile_kernel(kernel, name, backend=None):
             _record_profile(name, end - start)
             return event
         elif backend == 'cuda':
-            exec_time = kernel(*args, **kwargs, time_kernel=True)
-            _record_profile(name, exec_time)
-            return exec_time
+            from pycuda import driver as cuda
+            stream = kwargs.get('stream')
+            start = cuda.Event()
+            end = cuda.Event()
+            start.record(stream)
+            result = kernel(*args, **kwargs)
+            end.record(stream)
+            end.synchronize()
+            _record_profile(name, end.time_since(start) * 1e-3)
+            return result
         else:
             start = time.time()
             kernel(*args, **kwargs)
