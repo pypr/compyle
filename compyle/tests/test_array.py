@@ -449,9 +449,9 @@ def test_trapz(backend):
     y = array.linspace(0, 5, 6, dtype=np.float32, backend=backend)
     xn = np.linspace(0, 5, 6, dtype=np.float32)
     yn = np.linspace(0, 5, 6, dtype=np.float32)
-    assert(array.trapz(y) == np.trapz(yn))
-    assert(array.trapz(y, x,) == np.trapz(yn, xn))
-    assert(array.trapz(y, dx=3) == np.trapz(yn, dx=3))
+    assert(array.trapz(y) == np.trapezoid(yn))
+    assert(array.trapz(y, x,) == np.trapezoid(yn, xn))
+    assert(array.trapz(y, dx=3) == np.trapezoid(yn, dx=3))
 
     x = array.linspace(0, 5, 5, dtype=np.float32, backend=backend)
     with pytest.raises(Exception):
